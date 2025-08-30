@@ -1,0 +1,121 @@
+{
+  "navigation": {
+    "dashboard": "Dashboard",
+    "analytics": "Analytik",
+    "system": "System", 
+    "settings": "Einstellungen",
+    "quickOverview": "Schnellübersicht"
+  },
+  "actions": {
+    "save": "Speichern",
+    "cancel": "Abbrechen", 
+    "delete": "Löschen",
+    "edit": "Bearbeiten",
+    "add": "Hinzufügen",
+    "refresh": "Aktualisieren",
+    "tryAgain": "Nochmal versuchen",
+    "uploadPhoto": "Foto hochladen",
+    "refreshPage": "Seite aktualisieren"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "plantsOverview": "Pflanzen Übersicht",
+    "addNewPlant": "Neue Pflanze hinzufügen",
+    "plants": "Pflanzen",
+    "online": "Online",
+    "needWater": "Brauchen Wasser"
+  },
+  "plantStatus": {
+    "healthy": "Gesund",
+    "needsWater": "Braucht Wasser", 
+    "offline": "Offline",
+    "lastWatered": "Zuletzt gegossen"
+  },
+  "analytics": {
+    "title": "Analytik",
+    "description": "Detaillierte Einblicke und Trends für Ihr Pflanzenpflegesystem",
+    "comingSoon": "Analytik kommt bald",
+    "devMessage": "Detaillierte Analytik- und Berichtsfunktionen sind in Entwicklung."
+  },
+  "system": {
+    "title": "System Status",
+    "description": "Überwachen Sie die Gesundheit und Leistung Ihres PlanetPlant Systems",
+    "overview": "System Übersicht",
+    "cpu": "Prozessor",
+    "memory": "Arbeitsspeicher",
+    "storage": "Speicherplatz", 
+    "network": "Netzwerk",
+    "uptime": "Betriebszeit",
+    "temperature": "Temperatur"
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "description": "Konfigurieren Sie Ihre PlanetPlant System Einstellungen",
+    "notifications": "Benachrichtigungen",
+    "appearance": "Erscheinungsbild",
+    "language": "Sprache",
+    "general": "Allgemeine Einstellungen",
+    "system": "System Einstellungen",
+    "about": "Über"
+  },
+  "errors": {
+    "title": "Ups! Etwas ist schiefgelaufen",
+    "message": "PlanetPlant hat einen unerwarteten Fehler festgestellt. Keine Sorge, Ihre Pflanzen sind noch sicher!",
+    "details": "Fehler Details (Entwicklung)",
+    "reportIssue": "Problem melden",
+    "somethingWentWrong": "Etwas ist schiefgelaufen",
+    "errorOccurred": "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut."
+  },
+  "notFound": {
+    "title": "Diese Pflanze wurde nicht gefunden",
+    "message": "Die angeforderte Seite existiert nicht in unserem Garten.",
+    "backToDashboard": "Zurück zum Dashboard"
+  },
+  "connection": {
+    "connected": "Verbunden",
+    "reconnecting": "Verbinde neu...",
+    "disconnected": "Getrennt"
+  },
+  "plant": {
+    "details": "Pflanzen Details",
+    "name": "Pflanzenname",
+    "type": "Pflanzentyp",
+    "location": "Standort",
+    "photo": "Pflanzenfoto",
+    "config": "Konfiguration",
+    "thresholds": "Schwellenwerte",
+    "watering": "Bewässerungseinstellungen"
+  },
+  "watering": {
+    "history": "Bewässerungsverlauf",
+    "noHistory": "Kein Bewässerungsverlauf", 
+    "notWateredYet": "Diese Pflanze wurde noch nicht gegossen.",
+    "duration": "Dauer",
+    "frequency": "Häufigkeit"
+  },
+  "sensors": {
+    "moisture": "Bodenfeuchtigkeit",
+    "temperature": "Temperatur", 
+    "humidity": "Luftfeuchtigkeit",
+    "light": "Lichtstärke"
+  },
+  "units": {
+    "celsius": "°C",
+    "fahrenheit": "°F",
+    "percent": "%", 
+    "lux": "lux",
+    "minutes": "min",
+    "hours": "Std",
+    "days": "Tage"
+  },
+  "time": {
+    "now": "jetzt",
+    "minute": "Minute",
+    "minutes": "Minuten", 
+    "hour": "Stunde",
+    "hours": "Stunden",
+    "day": "Tag",
+    "days": "Tage", 
+    "ago": "vor"
+  }
+}

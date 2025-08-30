@@ -1,0 +1,142 @@
+{
+  "server": {
+    "port": 3000,
+    "host": "0.0.0.0",
+    "cors": {
+      "origin": ["http://localhost:3001", "http://localhost:5173"],
+      "credentials": true
+    },
+    "rateLimit": {
+      "windowMs": 15000,
+      "max": 100
+    }
+  },
+  "mqtt": {
+    "broker": {
+      "host": "localhost",
+      "port": 1883,
+      "username": "plantplant",
+      "password": "plantplant123",
+      "clientId": "plantplant-server"
+    },
+    "topics": {
+      "sensors": {
+        "moisture": "plantplant/sensors/moisture",
+        "temperature": "plantplant/sensors/temperature",
+        "humidity": "plantplant/sensors/humidity",
+        "light": "plantplant/sensors/light"
+      },
+      "control": {
+        "pump": "plantplant/control/pump",
+        "system": "plantplant/control/system"
+      },
+      "status": {
+        "device": "plantplant/status/device",
+        "connection": "plantplant/status/connection"
+      }
+    }
+  },
+  "influxdb": {
+    "url": "http://localhost:8086",
+    "token": "plantplant-super-secret-auth-token",
+    "org": "plantplant",
+    "bucket": "sensors",
+    "precision": "s"
+  },
+  "redis": {
+    "host": "localhost",
+    "port": 6379,
+    "password": "plantplant123",
+    "db": 0,
+    "keyPrefix": "plantplant:",
+    "retryDelayOnFailover": 100,
+    "enableReadyCheck": true,
+    "maxRetriesPerRequest": 3
+  },
+  "watering": {
+    "thresholds": {
+      "moisture": {
+        "min": 30,
+        "max": 80
+      },
+      "temperature": {
+        "min": 15,
+        "max": 30
+      }
+    },
+    "pump": {
+      "maxDurationMs": 10000,
+      "cooldownMs": 300000,
+      "flowRateMLperSec": 5
+    },
+    "schedule": {
+      "enabled": true,
+      "times": ["08:00", "18:00"],
+      "timezone": "Europe/Berlin"
+    }
+  },
+  "sensors": {
+    "readingInterval": 60000,
+    "calibration": {
+      "moisture": {
+        "dry": 1023,
+        "wet": 0
+      },
+      "temperature": {
+        "offset": 0
+      },
+      "humidity": {
+        "offset": 0
+      }
+    }
+  },
+  "alerts": {
+    "email": {
+      "enabled": false,
+      "smtp": {
+        "host": "smtp.gmail.com",
+        "port": 587,
+        "secure": false,
+        "auth": {
+          "user": "your-email@gmail.com",
+          "pass": "your-app-password"
+        }
+      },
+      "recipients": ["admin@plantplant.com"]
+    },
+    "thresholds": {
+      "lowMoisture": 20,
+      "highTemperature": 35,
+      "connectionLost": 300000
+    }
+  },
+  "logging": {
+    "level": "info",
+    "file": {
+      "enabled": true,
+      "filename": "logs/plantplant-%DATE%.log",
+      "maxSize": "20m",
+      "maxFiles": "14d"
+    },
+    "console": {
+      "enabled": true,
+      "colorize": true
+    }
+  },
+  "security": {
+    "jwt": {
+      "expiresIn": "24h",
+      "refreshExpiresIn": "7d"
+    },
+    "bcrypt": {
+      "rounds": 12
+    }
+  },
+  "database": {
+    "retention": {
+      "sensorData": "30d",
+      "events": "90d",
+      "logs": "7d"
+    }
+  }
+}

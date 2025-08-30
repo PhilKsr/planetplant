@@ -1,0 +1,121 @@
+{
+  "navigation": {
+    "dashboard": "Dashboard",
+    "analytics": "Analytics", 
+    "system": "System",
+    "settings": "Settings",
+    "quickOverview": "Quick Overview"
+  },
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "refresh": "Refresh",
+    "tryAgain": "Try Again",
+    "uploadPhoto": "Upload Photo",
+    "refreshPage": "Refresh Page"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "plantsOverview": "Plants Overview",
+    "addNewPlant": "Add New Plant",
+    "plants": "Plants",
+    "online": "Online",
+    "needWater": "Need Water"
+  },
+  "plantStatus": {
+    "healthy": "Healthy",
+    "needsWater": "Needs Water",
+    "offline": "Offline",
+    "lastWatered": "Last watered"
+  },
+  "analytics": {
+    "title": "Analytics",
+    "description": "Detailed insights and trends for your plant care system",
+    "comingSoon": "Analytics Coming Soon",
+    "devMessage": "Detailed analytics and reporting features are in development."
+  },
+  "system": {
+    "title": "System Status",
+    "description": "Monitor your PlanetPlant system health and performance",
+    "overview": "System Overview",
+    "cpu": "CPU",
+    "memory": "Memory",
+    "storage": "Storage",
+    "network": "Network",
+    "uptime": "Uptime",
+    "temperature": "Temperature"
+  },
+  "settings": {
+    "title": "Settings",
+    "description": "Configure your PlanetPlant system preferences",
+    "notifications": "Notifications",
+    "appearance": "Appearance",
+    "language": "Language",
+    "general": "General Settings",
+    "system": "System Settings",
+    "about": "About"
+  },
+  "errors": {
+    "title": "Oops! Something went wrong",
+    "message": "PlanetPlant encountered an unexpected error. Don't worry, your plants are still safe!",
+    "details": "Error Details (Development)",
+    "reportIssue": "report this issue",
+    "somethingWentWrong": "Something went wrong",
+    "errorOccurred": "An error occurred. Please try again."
+  },
+  "notFound": {
+    "title": "Plant not found", 
+    "message": "The requested page does not exist in our garden.",
+    "backToDashboard": "Back to Dashboard"
+  },
+  "connection": {
+    "connected": "Connected",
+    "reconnecting": "Reconnecting...",
+    "disconnected": "Disconnected"
+  },
+  "plant": {
+    "details": "Plant Details",
+    "name": "Plant Name",
+    "type": "Plant Type",
+    "location": "Location",
+    "photo": "Plant Photo",
+    "config": "Configuration",
+    "thresholds": "Thresholds",
+    "watering": "Watering Settings"
+  },
+  "watering": {
+    "history": "Watering History",
+    "noHistory": "No watering history",
+    "notWateredYet": "This plant hasn't been watered yet.",
+    "duration": "Duration",
+    "frequency": "Frequency"
+  },
+  "sensors": {
+    "moisture": "Soil Moisture",
+    "temperature": "Temperature",
+    "humidity": "Air Humidity",
+    "light": "Light Level"
+  },
+  "units": {
+    "celsius": "°C",
+    "fahrenheit": "°F", 
+    "percent": "%",
+    "lux": "lux",
+    "minutes": "min",
+    "hours": "h",
+    "days": "d"
+  },
+  "time": {
+    "now": "now",
+    "minute": "minute",
+    "minutes": "minutes",
+    "hour": "hour", 
+    "hours": "hours",
+    "day": "day",
+    "days": "days",
+    "ago": "ago"
+  }
+}

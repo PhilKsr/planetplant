@@ -1,0 +1,391 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* CSS Custom Properties for theming */
+:root {
+  --toast-bg: theme('colors.white');
+  --toast-color: theme('colors.gray.900');
+  --toast-border: theme('colors.gray.200');
+}
+
+.dark {
+  --toast-bg: theme('colors.gray.800');
+  --toast-color: theme('colors.white');
+  --toast-border: theme('colors.gray.700');
+}
+
+/* Base styles */
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  body {
+    @apply bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100;
+    @apply transition-colors duration-200;
+  }
+  
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    @apply w-2 h-2;
+  }
+  
+  ::-webkit-scrollbar-track {
+    @apply bg-gray-100 dark:bg-gray-800;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 dark:bg-gray-600 rounded-full;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-400 dark:bg-gray-500;
+  }
+}
+
+/* Component styles */
+@layer components {
+  .card {
+    @apply bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700;
+    @apply transition-all duration-200;
+  }
+  
+  .card-hover {
+    @apply hover:shadow-xl hover:scale-[1.02] hover:border-primary-300 dark:hover:border-primary-600;
+  }
+  
+  .btn-primary {
+    @apply bg-primary-600 hover:bg-primary-700 focus:ring-primary-500;
+    @apply text-white font-medium px-4 py-2 rounded-lg;
+    @apply transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
+    @apply disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  
+  .btn-secondary {
+    @apply bg-gray-200 hover:bg-gray-300 focus:ring-gray-500;
+    @apply text-gray-700 dark:text-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600;
+    @apply font-medium px-4 py-2 rounded-lg;
+    @apply transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
+    @apply disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  
+  .btn-danger {
+    @apply bg-red-600 hover:bg-red-700 focus:ring-red-500;
+    @apply text-white font-medium px-4 py-2 rounded-lg;
+    @apply transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
+    @apply disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  
+  .input-field {
+    @apply w-full px-3 py-2 border border-gray-300 dark:border-gray-600;
+    @apply rounded-lg shadow-sm bg-white dark:bg-gray-700;
+    @apply text-gray-900 dark:text-gray-100;
+    @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500;
+    @apply transition-colors duration-200;
+  }
+  
+  .gauge-container {
+    @apply relative inline-flex items-center justify-center;
+  }
+  
+  .gauge-track {
+    @apply stroke-gray-200 dark:stroke-gray-700;
+  }
+  
+  .gauge-progress {
+    @apply transition-all duration-1000 ease-out;
+    @apply drop-shadow-sm;
+  }
+  
+  .status-indicator {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  
+  .status-online {
+    @apply bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200;
+  }
+  
+  .status-offline {
+    @apply bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200;
+  }
+  
+  .status-warning {
+    @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200;
+  }
+}
+
+/* Utility styles */
+@layer utilities {
+  .animate-fade-in-up {
+    animation: fadeIn 0.5s ease-out;
+  }
+  
+  .glass {
+    @apply bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm;
+    @apply border border-white/20 dark:border-gray-800/20;
+  }
+  
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Custom animations for plant theme */
+@keyframes droplet {
+  0% { transform: translateY(-10px) scale(0.8); opacity: 0; }
+  50% { transform: translateY(0) scale(1.1); opacity: 0.8; }
+  100% { transform: translateY(10px) scale(1); opacity: 0; }
+}
+
+@keyframes grow {
+  0% { transform: scale(0.95); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200px 0; }
+  100% { background-position: calc(200px + 100%) 0; }
+}
+
+.animate-droplet {
+  animation: droplet 2s ease-in-out infinite;
+}
+
+.animate-grow {
+  animation: grow 0.3s ease-out;
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    rgba(255,255,255,0.4) 50%, 
+    transparent 100%);
+  background-size: 200px 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Loading skeleton styles */
+.skeleton {
+  @apply animate-pulse bg-gray-200 dark:bg-gray-700 rounded;
+}
+
+.skeleton-text {
+  @apply h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse;
+}
+
+.skeleton-avatar {
+  @apply w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse;
+}
+
+/* Chart styles */
+.recharts-wrapper {
+  @apply font-mono text-sm;
+}
+
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  @apply stroke-gray-200 dark:stroke-gray-700;
+}
+
+.recharts-tooltip-wrapper {
+  @apply outline-none;
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  .card {
+    @apply shadow-none border border-gray-300 break-inside-avoid;
+  }
+  
+  .bg-gradient-plant {
+    background: theme('colors.gray.100') !important;
+  }
+}
+
+/* Mobile responsive improvements */
+@media (max-width: 768px) {
+  .card {
+    @apply mx-4 rounded-lg shadow-md;
+  }
+  
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger {
+    @apply px-3 py-2 text-sm;
+  }
+  
+  .input-field {
+    @apply px-3 py-2 text-base; /* Prevent zoom on iOS */
+  }
+  
+  /* Better touch targets */
+  button, a, input, select, textarea {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Prevent horizontal scroll */
+  body {
+    overflow-x: hidden;
+  }
+}
+
+/* Tablet responsive styles */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .card {
+    @apply mx-2;
+  }
+  
+  /* Better spacing for tablets */
+  .grid-cols-1 {
+    @apply md:grid-cols-2;
+  }
+}
+
+/* Desktop responsive styles */
+@media (min-width: 1024px) {
+  .card {
+    @apply hover:scale-[1.01];
+  }
+  
+  /* Enhanced hover effects for desktop */
+  .btn-primary:hover,
+  .btn-secondary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+}
+
+/* High DPI display optimizations */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .card {
+    @apply border-[0.5px];
+  }
+  
+  /* Sharper icons on retina displays */
+  svg {
+    shape-rendering: geometricPrecision;
+  }
+}
+
+/* Dark mode specific responsive adjustments */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+  }
+}
+
+/* Focus improvements for keyboard navigation */
+@media (prefers-reduced-motion: no-preference) {
+  *:focus-visible {
+    @apply outline-2 outline-offset-2 outline-primary-500;
+    @apply transition-all duration-200;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .card {
+    @apply border-2 border-gray-900 dark:border-white;
+  }
+  
+  .btn-primary {
+    @apply bg-blue-700 border-2 border-blue-900;
+  }
+  
+  .text-gray-600 {
+    @apply text-gray-900 dark:text-white;
+  }
+}
+
+/* Landscape mobile orientation */
+@media (max-width: 768px) and (orientation: landscape) {
+  /* Compact header for landscape mobile */
+  .mobile-landscape-compact {
+    @apply py-2;
+  }
+  
+  /* Reduce vertical spacing */
+  .space-y-6 > * + * {
+    @apply mt-3;
+  }
+  
+  /* Shorter cards for landscape */
+  .card {
+    @apply py-3;
+  }
+}
+
+/* iOS Safari specific fixes */
+@supports (-webkit-touch-callout: none) {
+  /* Fix viewport units on iOS */
+  .min-h-screen {
+    min-height: -webkit-fill-available;
+  }
+  
+  /* Prevent zoom on input focus */
+  input, select, textarea {
+    font-size: 16px;
+  }
+  
+  /* Better touch scrolling */
+  * {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Accessibility improvements */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  /* Keep essential animations for UX */
+  .gauge-progress {
+    transition-duration: 0.3s !important;
+  }
+}
+
+/* Print optimizations */
+@media print {
+  /* Better page breaks */
+  .card {
+    page-break-inside: avoid;
+  }
+  
+  /* Remove unnecessary elements */
+  .no-print,
+  button,
+  .mobile-nav,
+  .sidebar {
+    display: none !important;
+  }
+  
+  /* Optimize colors for print */
+  * {
+    background: white !important;
+    color: black !important;
+    box-shadow: none !important;
+  }
+}

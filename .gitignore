@@ -1,0 +1,157 @@
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.tmp
+*.temp
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.npm
+.yarn-integrity
+*.tgz
+*.tar.gz
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+.nyc_output
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# Logs
+logs/
+*.log
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# Build outputs
+build/
+dist/
+out/
+
+# React specific
+webapp/build/
+webapp/dist/
+webapp/.cache/
+
+# Arduino/ESP32
+esp32/.pio/
+esp32/.vscode/
+esp32/lib/
+esp32/test/
+esp32/*.bin
+esp32/*.elf
+esp32/*.map
+esp32/platformio.ini.bak
+
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+.clang_complete
+.gcc-flags.json
+
+# Arduino IDE
+esp32/*.hex
+esp32/*.eep
+esp32/*.elf
+esp32/*.map
+esp32/*.sym
+esp32/*.lss
+esp32/*.eeprom
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# InfluxDB data
+influxdb-data/
+
+# Docker volumes
+docker-volumes/
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# IDE/Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Mac specific
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Raspberry Pi specific
+raspberry-pi/logs/
+raspberry-pi/data/
+*.service
+
+# Config files with secrets
+config/secrets.json
+config/production.json
+raspberry-pi/config/secrets.json
+raspberry-pi/config/production.json
+
+# SSL certificates
+*.pem
+*.key
+*.crt
+*.p12
+
+# Python (if used for scripts)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Temporary files
+tmp/
+temp/
+.temp/
