@@ -38,27 +38,48 @@ PlanetPlant is a smart IoT plant watering system with three main components:
 - Docker & Docker Compose
 - Arduino IDE/PlatformIO (for ESP32)
 
-### Local Development
-1. **Start Docker services**: `docker-compose up -d`
-2. **Backend**: `cd raspberry-pi && npm install && npm start` (Port 3000)
-3. **Frontend**: `cd webapp && npm install && npm start` (Port 5173)
+### Environment-Specific Setup
+
+#### Development (Mac/Local)
+```bash
+# Use development Docker Compose with hot-reload
+cd raspberry-pi
+make dev                    # Start all services with docker-compose.dev.yml
+npm run dev                 # Alternative: Start backend with nodemon (Port 3000)
+```
+
+#### Production (Raspberry Pi 5)
+```bash
+# Use production Docker Compose with optimizations
+cd raspberry-pi
+make prod                   # Start all services with docker-compose.prod.yml
+make backup                 # Create full system backup
+make restore file=backup.tar.gz  # Restore from backup
+```
 
 ### Key Files & Directories
 ```
 PlanetPlant/
 ├── raspberry-pi/
-│   ├── .env                    # Environment variables (copy from .env.example)
-│   ├── package.json           # Fixed versions for backend dependencies
-│   ├── src/app.js             # Main server entry point (dotenv config at top!)
-│   ├── src/services/          # Core services (MQTT, InfluxDB, Plant, Automation)
-│   └── ecosystem.config.js    # PM2 configuration
+│   ├── .env                      # Environment variables (copy from .env.example)
+│   ├── package.json             # Fixed versions for backend dependencies
+│   ├── Makefile                 # Build automation for dev/prod environments
+│   ├── docker-compose.dev.yml   # Development environment (Mac/local)
+│   ├── docker-compose.prod.yml  # Production environment (Pi 5)
+│   ├── src/app.js              # Main server entry point (dotenv config at top!)
+│   ├── src/services/           # Core services (MQTT, InfluxDB, Plant, Automation)
+│   ├── scripts/                # Backup/restore automation scripts
+│   └── ecosystem.config.js     # PM2 configuration
 ├── webapp/
-│   ├── package.json          # Fixed versions for frontend dependencies  
-│   ├── src/App.jsx           # Main React app entry
-│   └── src/components/       # Reusable UI components
+│   ├── package.json            # Fixed versions for frontend dependencies  
+│   ├── src/App.jsx             # Main React app entry
+│   └── src/components/         # Reusable UI components
 ├── config/
-│   └── mosquitto.conf        # Minimal MQTT broker config
-└── docker-compose.yml        # Infrastructure services
+│   ├── mosquitto.conf          # MQTT broker configuration
+│   ├── grafana/                # Grafana dashboards and provisioning
+│   └── nginx/                  # Reverse proxy configuration
+├── .github/workflows/          # CI/CD automation
+└── docker-compose.yml          # Legacy - use dev/prod variants instead
 ```
 
 ## 🚨 Common Issues & Fixes
@@ -96,15 +117,19 @@ PlanetPlant/
 ## 📋 API Endpoints
 
 ### Plant Management
-- `GET /api/plants` - List all plants
-- `GET /api/plants/:id/current` - Current sensor data
-- `GET /api/plants/:id/history` - Historical data  
-- `POST /api/plants/:id/water` - Manual watering
+- `GET /api/plants` - List all plants with current sensor data
+- `GET /api/plants/:id` - Get specific plant details
+- `GET /api/plants/:id/current` - Current sensor data from InfluxDB
+- `GET /api/plants/:id/history` - Historical data with configurable range
+- `GET /api/plants/:id/anomalies` - Detect sensor anomalies using Flux queries
+- `GET /api/plants/:id/aggregates` - Daily/weekly aggregated statistics
+- `POST /api/plants/:id/water` - Manual watering with MQTT command
 - `PUT /api/plants/:id/config` - Update plant settings
 
-### System
-- `GET /api/system/status` - System health
-- `GET /api/system/stats` - System statistics
+### System & Monitoring
+- `GET /api/system/status` - System health (MQTT, InfluxDB, Redis)
+- `GET /api/system/stats` - System performance metrics
+- `GET /api/alerts/active` - Active plant alerts and warnings
 
 ## 📡 MQTT Topics
 
@@ -124,6 +149,7 @@ PlanetPlant/
 2. **Follow existing patterns** - Match code style of surrounding files
 3. **Fixed versions** - Use exact versions in package.json (no ^ or ~)
 4. **Security first** - Never commit secrets, use environment variables
+5. **Clean commit messages** - Never mention Claude or AI assistance in commits
 
 ### File Organization
 1. **Prefer editing over creating** - Modify existing files when possible
@@ -149,30 +175,110 @@ PlanetPlant/
 4. Test locally before finalizing
 5. Update this CLAUDE.md if architecture changes
 
-### Common Commands
+### Docker & Infrastructure Commands
 ```bash
-# Backend
-cd raspberry-pi
-npm run dev          # Development with nodemon
-npm run lint         # Check code style
-npm run test         # Run tests
+# Development Environment (Mac/Local)
+make dev                          # Start dev environment with hot-reload
+make dev-logs                     # View development logs
+make dev-down                     # Stop development environment
 
-# Frontend  
-cd webapp
-npm run dev          # Vite dev server
-npm run build        # Production build
-npm run preview      # Preview production build
+# Production Environment (Pi 5)
+make prod                         # Start production environment
+make prod-logs                    # View production logs
+make prod-down                    # Stop production environment
 
-# Infrastructure
-docker-compose up -d              # Start services
-docker-compose logs mosquitto     # Check MQTT logs
-docker-compose restart influxdb   # Restart InfluxDB
+# Maintenance & Operations
+make backup                       # Create timestamped backup
+make restore file=backup.tar.gz   # Restore from backup
+make update                       # Update and rebuild containers
+make rebuild                      # Force rebuild all containers
+make clean                        # Clean unused Docker resources
+
+# Service Management
+docker-compose -f docker-compose.dev.yml logs mosquitto
+docker-compose -f docker-compose.prod.yml restart influxdb
+docker-compose -f docker-compose.dev.yml exec backend npm run lint
 ```
 
+### Backend Development
+```bash
+cd raspberry-pi
+npm run dev          # Development with nodemon
+npm run lint         # ESLint code quality check
+npm run test         # Run tests (if available)
+npm start            # Production start
+```
+
+### Frontend Development
+```bash
+cd webapp
+npm run dev          # Vite dev server (Port 5173)
+npm run build        # Production build
+npm run preview      # Preview production build
+```
+
+## 🗄️ InfluxDB Integration
+
+### Data Model
+- **Bucket**: `sensor-data` (configurable via INFLUXDB_BUCKET)
+- **Measurements**:
+  - `sensor_data`: Temperature, humidity, moisture, light readings
+  - `watering_events`: Pump activation logs with duration and success status
+  - `system_stats`: Server performance metrics
+
+### Key Features
+- **Batch Processing**: Automatic batching with 100-point buffer and 5s flush interval
+- **Retry Logic**: Exponential backoff for failed writes with 3 max retries
+- **Anomaly Detection**: Flux queries for detecting unusual sensor patterns
+- **Aggregation**: Daily/weekly statistical summaries
+- **Grafana Integration**: Predefined Flux queries for dashboard provisioning
+
+### Critical Implementation Notes
+- InfluxDB service MUST be initialized before MQTT client in app.js
+- All sensor data goes through plantService.updateSensorData() → influxService.writeSensorData()
+- Use Point objects with proper tags (device_id, plant_id, sensor_type) and fields (value, unit)
+
+## 🐳 Docker Architecture
+
+### Development Environment (docker-compose.dev.yml)
+- **Backend**: Live code mounting with nodemon hot-reload
+- **Frontend**: Vite dev server with HMR
+- **Services**: InfluxDB, Mosquitto, Redis with development settings
+- **Debugging**: Node.js debug port 9229 exposed
+- **Networks**: Custom bridge network for service discovery
+
+### Production Environment (docker-compose.prod.yml)
+- **Optimization**: Multi-stage builds, ARM64 native compilation
+- **Security**: Non-root users, read-only filesystems where possible
+- **Performance**: Resource limits, health checks, restart policies
+- **Storage**: Bind-mounted volumes to `/opt/planetplant/` directories
+- **Monitoring**: Comprehensive logging and metrics collection
+
+### Container Images
+- **Backend**: Custom Node.js 18-alpine with PM2
+- **Frontend**: Nginx-alpine serving static build
+- **Infrastructure**: Official InfluxDB 2.7, Eclipse Mosquitto, Redis 7-alpine
+
+## 🔄 CI/CD Pipeline (.github/workflows/deploy.yml)
+
+### Automated Workflow
+1. **Testing**: ESLint, build verification, dependency audit
+2. **Building**: Multi-arch Docker images (AMD64, ARM64)
+3. **Registry**: GitHub Container Registry with automated tagging
+4. **Deployment**: SSH-based deployment to Raspberry Pi 5
+5. **Verification**: Health checks and service status validation
+
+### Deployment Strategy
+- **Staging**: Automatic deployment on `develop` branch
+- **Production**: Manual approval required for `main` branch
+- **Rollback**: Previous container images kept for quick recovery
+- **Monitoring**: Real-time deployment status and error reporting
+
 ## 📝 Notes for Claude Code
-- Environment loading order is critical in app.js
-- Mosquitto requires minimal config for local development
-- React dependencies need careful version management
-- InfluxDB token must be available at service initialization
-- Use TodoWrite for complex multi-step tasks
-- Test each component separately before integration
+- Environment loading order is critical in app.js (dotenv BEFORE service imports)
+- SQLite completely removed - all data now in InfluxDB time-series format
+- Use `make dev` for development, `make prod` for production deployments
+- MQTT client depends on InfluxDB service for sensor data persistence
+- All Docker configurations tested and optimized for respective environments
+- ESLint configuration enforces consistent code style across the project
+- Backup/restore scripts handle complete system state including Docker volumes
