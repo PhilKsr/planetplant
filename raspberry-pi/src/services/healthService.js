@@ -1,7 +1,7 @@
 import os from 'os';
 import { logger, createTimer } from '../utils/logger.js';
 import { mqttClient } from './mqttClient.js';
-import { sqliteService } from './sqliteService.js';
+import { influxService } from './influxService.js';
 import { plantService } from './plantService.js';
 import { automationService } from './automationService.js';
 
@@ -144,20 +144,20 @@ class HealthService {
     const timer = createTimer('health.checkDatabaseHealth');
     
     try {
-      const databaseStatus = sqliteService.getConnectionStatus();
+      const databaseStatus = await influxService.getSystemHealth();
       
       // Test database with a simple query
       const startTime = Date.now();
-      const stats = sqliteService.getStats();
       const responseTime = Date.now() - startTime;
 
       const health = {
         status: databaseStatus.connected ? 'healthy' : 'unhealthy',
         connected: databaseStatus.connected,
         responseTime: `${responseTime}ms`,
-        path: databaseStatus.path,
-        type: databaseStatus.type,
-        stats,
+        url: databaseStatus.url,
+        bucket: databaseStatus.bucket,
+        buffer_size: databaseStatus.buffer_size,
+        retry_queue_size: databaseStatus.retry_queue_size,
         lastCheck: new Date().toISOString()
       };
 
@@ -468,7 +468,7 @@ class HealthService {
         },
         services: {
           mqtt: mqttClient.getConnectionStatus(),
-          database: sqliteService.getConnectionStatus(),
+          database: await influxService.getSystemHealth(),
           automation: automationService.getAutomationStatus()
         }
       };
@@ -486,7 +486,7 @@ class HealthService {
   async isSystemReady() {
     try {
       const mqttStatus = mqttClient.getConnectionStatus();
-      const databaseStatus = sqliteService.getConnectionStatus();
+      const databaseStatus = influxService.getSystemHealth();
       
       return {
         ready: mqttStatus.connected && databaseStatus.connected,

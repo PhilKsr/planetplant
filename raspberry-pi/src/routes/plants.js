@@ -2,7 +2,7 @@ import express from 'express';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { plantService } from '../services/plantService.js';
 import { mqttClient } from '../services/mqttClient.js';
-import { sqliteService } from '../services/sqliteService.js';
+import { influxService } from '../services/influxService.js';
 import { logger } from '../utils/logger.js';
 
 const router = express.Router();
@@ -46,10 +46,9 @@ router.get('/:id', asyncHandler(async (req, res) => {
 router.get('/:id/current', asyncHandler(async (req, res) => {
   const { id } = req.params;
   
-  // Ensure plant exists
   await plantService.getPlantById(id);
   
-  const currentData = await sqliteService.getCurrentSensorData(id);
+  const currentData = await influxService.getCurrentSensorData(id);
   
   res.json({
     success: true,
@@ -65,77 +64,40 @@ router.get('/:id/current', asyncHandler(async (req, res) => {
 router.get('/:id/history', asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { 
-    timeRange = '24h',
-    sensors = 'all',
-    limit = 1000
+    range = '24h',
+    interval = '5m'
   } = req.query;
   
-  // Validate time range
-  const validTimeRanges = ['1h', '6h', '12h', '24h', '7d', '30d'];
-  if (!validTimeRanges.includes(timeRange)) {
-    return res.status(400).json({
-      success: false,
-      error: {
-        message: 'Invalid time range',
-        validValues: validTimeRanges
-      }
-    });
-  }
+  await plantService.getPlantById(id);
   
-  const history = await plantService.getPlantHistory(id, timeRange);
-  
-  // Filter sensors if specified
-  if (sensors !== 'all') {
-    const requestedSensors = sensors.split(',');
-    const filteredData = {};
-    
-    requestedSensors.forEach(sensor => {
-      if (history.sensorData[sensor]) {
-        filteredData[sensor] = history.sensorData[sensor];
-      }
-    });
-    
-    history.sensorData = filteredData;
-  }
-  
-  // Limit data points if specified
-  if (limit && limit < 10000) {
-    Object.keys(history.sensorData).forEach(sensorType => {
-      if (history.sensorData[sensorType].length > limit) {
-        // Take evenly spaced samples
-        const step = Math.ceil(history.sensorData[sensorType].length / limit);
-        history.sensorData[sensorType] = history.sensorData[sensorType]
-          .filter((_, index) => index % step === 0);
-      }
-    });
-  }
+  const history = await influxService.getHistoricalData(id, range, interval);
   
   res.json({
     success: true,
-    data: history,
-    meta: {
-      timeRange,
-      requestedSensors: sensors,
-      limit: parseInt(limit)
-    }
+    data: {
+      plantId: id,
+      range,
+      interval,
+      sensors: history
+    },
+    timestamp: new Date().toISOString()
   });
 }));
 
 // GET /api/plants/:id/watering/history - Get watering history
 router.get('/:id/watering/history', asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { timeRange = '7d' } = req.query;
+  const { range = '7d' } = req.query;
   
-  // Ensure plant exists
   await plantService.getPlantById(id);
   
-  const wateringHistory = await sqliteService.getWateringHistory(id, `-${timeRange}`);
+  const wateringHistory = await influxService.getWateringHistory(id, range);
   
   res.json({
     success: true,
     data: {
       plantId: id,
-      timeRange,
+      range,
       events: wateringHistory,
       count: wateringHistory.length
     }
@@ -188,15 +150,8 @@ router.post('/:id/water', asyncHandler(async (req, res) => {
     });
   }
   
-  // Record watering event
-  const eventData = {
-    duration,
-    triggerType: 'manual',
-    reason,
-    success: true
-  };
-  
-  await plantService.recordWateringEvent(id, eventData);
+  // Record watering event to InfluxDB
+  influxService.writeWateringEvent(id, 'esp32-001', 'manual', duration, duration * 0.005, true, reason);
   
   logger.info(`💧 Manual watering initiated for plant ${plant.name} (${id})`);
   
@@ -405,6 +360,62 @@ router.get('/:id/recommendations', asyncHandler(async (req, res) => {
       count: recommendations.length,
       generatedAt: new Date().toISOString()
     }
+  });
+}));
+
+// GET /api/alerts/active - Get active alerts
+router.get('/alerts/active', asyncHandler(async (req, res) => {
+  const alerts = await influxService.getActiveAlerts();
+  
+  res.json({
+    success: true,
+    data: {
+      alerts,
+      count: alerts.length,
+      timestamp: new Date().toISOString()
+    }
+  });
+}));
+
+// GET /api/plants/:id/anomalies - Get anomaly detection results
+router.get('/:id/anomalies', asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { sensor_type = 'moisture', hours = 24 } = req.query;
+  
+  await plantService.getPlantById(id);
+  
+  const anomalies = await influxService.detectAnomalies(id, sensor_type, hours);
+  
+  res.json({
+    success: true,
+    data: {
+      plantId: id,
+      sensorType: sensor_type,
+      hours: parseInt(hours),
+      anomalies,
+      count: anomalies.length
+    },
+    timestamp: new Date().toISOString()
+  });
+}));
+
+// GET /api/plants/:id/aggregates - Get daily aggregated data
+router.get('/:id/aggregates', asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { days = 7 } = req.query;
+  
+  await plantService.getPlantById(id);
+  
+  const aggregates = await influxService.getDailyAggregates(id, days);
+  
+  res.json({
+    success: true,
+    data: {
+      plantId: id,
+      days: parseInt(days),
+      aggregates
+    },
+    timestamp: new Date().toISOString()
   });
 }));
 

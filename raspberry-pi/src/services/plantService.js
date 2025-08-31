@@ -1,5 +1,5 @@
 import { logger, createTimer } from '../utils/logger.js';
-import { sqliteService } from './sqliteService.js';
+import { influxService } from './influxService.js';
 import { NotFoundError, ValidationError } from '../middleware/errorHandler.js';
 
 class PlantService {
@@ -133,11 +133,16 @@ class PlantService {
       // Enrich with current sensor data from InfluxDB
       for (const plant of plants) {
         try {
-          const currentData = await sqliteService.getCurrentSensorData(plant.id);
-          if (Object.keys(currentData).length > 0) {
+          const currentData = await influxService.getCurrentSensorData(plant.id);
+          if (currentData && currentData.length > 0) {
+            const sensorMap = {};
+            currentData.forEach(sensor => {
+              sensorMap[sensor.sensor_type] = sensor.value;
+            });
+            
             plant.currentData = {
               ...plant.currentData,
-              ...currentData,
+              ...sensorMap,
               lastUpdate: new Date().toISOString()
             };
           }
@@ -164,13 +169,18 @@ class PlantService {
         throw new NotFoundError(`Plant with ID ${plantId} not found`);
       }
 
-      // Get current sensor data
+      // Get current sensor data from InfluxDB
       try {
-        const currentData = await sqliteService.getCurrentSensorData(plantId);
-        if (Object.keys(currentData).length > 0) {
+        const currentData = await influxService.getCurrentSensorData(plantId);
+        if (currentData && currentData.length > 0) {
+          const sensorMap = {};
+          currentData.forEach(sensor => {
+            sensorMap[sensor.sensor_type] = sensor.value;
+          });
+          
           plant.currentData = {
             ...plant.currentData,
-            ...currentData,
+            ...sensorMap,
             lastUpdate: new Date().toISOString()
           };
         }
@@ -199,7 +209,25 @@ class PlantService {
         return;
       }
 
-      // Update current data
+      // Write sensor data to InfluxDB
+      if (sensorData.temperature !== undefined) {
+        influxService.writeSensorData(plant.deviceId, plantId, plant.location, 
+          'temperature', sensorData.temperature, '°C');
+      }
+      if (sensorData.humidity !== undefined) {
+        influxService.writeSensorData(plant.deviceId, plantId, plant.location, 
+          'humidity', sensorData.humidity, '%');
+      }
+      if (sensorData.moisture !== undefined) {
+        influxService.writeSensorData(plant.deviceId, plantId, plant.location, 
+          'moisture', sensorData.moisture, '%');
+      }
+      if (sensorData.light !== undefined) {
+        influxService.writeSensorData(plant.deviceId, plantId, plant.location, 
+          'light', sensorData.light, 'lux');
+      }
+
+      // Update current data in memory
       plant.currentData = {
         ...plant.currentData,
         temperature: sensorData.temperature,
@@ -394,13 +422,11 @@ class PlantService {
         throw new NotFoundError(`Plant with ID ${plantId} not found`);
       }
 
-      const startTime = `-${timeRange}`;
+      // Get sensor data history from InfluxDB
+      const sensorHistory = await influxService.getHistoricalData(plantId, timeRange);
       
-      // Get sensor data history
-      const sensorHistory = await sqliteService.getHistoricalSensorData(plantId, startTime);
-      
-      // Get watering history
-      const wateringHistory = await sqliteService.getWateringHistory(plantId, startTime);
+      // Get watering history from InfluxDB
+      const wateringHistory = await influxService.getWateringHistory(plantId, timeRange);
 
       const result = {
         plantId,
@@ -434,7 +460,8 @@ class PlantService {
       plant.updated = new Date().toISOString();
 
       // Record in InfluxDB
-      await sqliteService.writeWateringEvent(plantId, eventData);
+      influxService.writeWateringEvent(plantId, plant.deviceId, eventData.triggerType, 
+        eventData.duration, eventData.volume || eventData.duration * 0.005, eventData.success, eventData.reason);
 
       // Log the event
       logger.logWateringEvent(plantId, eventData);
@@ -471,7 +498,6 @@ class PlantService {
     }
 
     // Check daily watering limit
-    const today = now.toISOString().split('T')[0];
     // This would need to query InfluxDB for today's watering count
     // For now, we'll assume it's okay
     

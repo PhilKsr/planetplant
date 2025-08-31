@@ -1,6 +1,6 @@
 import { logger } from '../utils/logger.js';
 
-export const errorHandler = (error, req, res, next) => {
+export const errorHandler = (error, req, res) => {
   logger.error('Express Error Handler', {
     message: error.message,
     stack: error.stack,

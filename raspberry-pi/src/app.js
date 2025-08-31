@@ -1,9 +1,5 @@
 import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
@@ -17,7 +13,7 @@ import { Server } from 'socket.io';
 
 import { logger } from './utils/logger.js';
 import { mqttClient } from './services/mqttClient.js';
-import { sqliteService } from './services/sqliteService.js';
+import { influxService } from './services/influxService.js';
 import { plantService } from './services/plantService.js';
 import { automationService } from './services/automationService.js';
 import { healthService } from './services/healthService.js';
@@ -100,8 +96,8 @@ const startServer = async () => {
   try {
     logger.info('🌱 Starting PlanetPlant Server...');
     
-    logger.info('📊 Connecting to SQLite...');
-    await sqliteService.initialize();
+    logger.info('📊 Connecting to InfluxDB...');
+    await influxService.initialize();
     
     logger.info('📡 Connecting to MQTT Broker...');
     await mqttClient.initialize();
@@ -143,8 +139,8 @@ const gracefulShutdown = async (signal) => {
       logger.info('📡 Disconnecting MQTT Client...');
       await mqttClient.disconnect();
       
-      logger.info('📊 Closing SQLite connection...');
-      await sqliteService.close();
+      logger.info('📊 Closing InfluxDB connection...');
+      await influxService.close();
       
       logger.info('✅ Graceful shutdown completed');
       process.exit(0);

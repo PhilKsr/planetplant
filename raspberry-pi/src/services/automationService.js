@@ -2,7 +2,7 @@ import cron from 'node-cron';
 import { logger, createTimer } from '../utils/logger.js';
 import { plantService } from './plantService.js';
 import { mqttClient } from './mqttClient.js';
-import { sqliteService } from './sqliteService.js';
+import { influxService } from './influxService.js';
 
 class AutomationService {
   constructor() {
@@ -187,16 +187,9 @@ class AutomationService {
         });
       }
       
-      // Record system event
-      await sqliteService.writeSystemEvent('automatic_watering', {
-        severity: 'info',
-        message: `Automatic watering for plant ${plant.name}`,
-        details: {
-          plantId,
-          duration,
-          moistureLevel: plant.currentData.moisture
-        }
-      });
+      // Record system event in InfluxDB
+      influxService.writeWateringEvent(plantId, plant.deviceId, 'automatic', 
+        duration, duration * 0.005, true, `Low moisture: ${plant.currentData.moisture}%`);
       
       timer.end({ plantId, duration });
       
@@ -229,14 +222,9 @@ class AutomationService {
       if (offlinePlants.length > 0) {
         logger.warn(`💊 Health check: ${offlinePlants.length} plants are offline`);
         
-        // Record system event
-        await sqliteService.writeSystemEvent('health_check_warning', {
-          severity: 'warning',
-          message: 'Plants offline detected',
-          details: {
-            offlineCount: offlinePlants.length,
-            offlinePlantIds: offlinePlants.map(p => p.id)
-          }
+        // Log warning for offline plants
+        logger.warn(`💊 Health check warning: ${offlinePlants.length} plants offline`, {
+          offlinePlantIds: offlinePlants.map(p => p.id)
         });
       }
       
@@ -251,21 +239,15 @@ class AutomationService {
     try {
       logger.info('🧹 Performing daily cleanup...');
       
-      // Clean up old sensor data based on retention policy
+      // InfluxDB handles data retention automatically via bucket policies
       const retentionPeriod = process.env.SENSOR_DATA_RETENTION || '30d';
-      await sqliteService.deleteOldData(retentionPeriod);
+      logger.info(`📊 Data retention policy: ${retentionPeriod} (handled by InfluxDB)`);
       
       // Reset daily statistics
       this.resetDailyStats();
       
-      // Record cleanup event
-      await sqliteService.writeSystemEvent('daily_cleanup', {
-        severity: 'info',
-        message: 'Daily cleanup completed',
-        details: {
-          retentionPeriod
-        }
-      });
+      // Log cleanup completion
+      logger.info('✅ Daily cleanup completed', { retentionPeriod });
       
       timer.end();
       logger.info('✅ Daily cleanup completed');
@@ -299,15 +281,11 @@ class AutomationService {
         }
       }
       
-      // Record automation statistics
-      await sqliteService.writeSystemEvent('automation_stats', {
-        severity: 'info',
-        message: 'Automation statistics update',
-        details: {
-          ...this.automationStats,
-          activePlants: plants.length,
-          onlinePlants: plants.filter(p => p.status.isOnline).length
-        }
+      // Log automation statistics
+      logger.info('📊 Automation statistics update', {
+        ...this.automationStats,
+        activePlants: plants.length,
+        onlinePlants: plants.filter(p => p.status.isOnline).length
       });
       
       timer.end({ plantsUpdated: plants.length });

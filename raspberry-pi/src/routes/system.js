@@ -2,7 +2,7 @@ import express from 'express';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { healthService } from '../services/healthService.js';
 import { mqttClient } from '../services/mqttClient.js';
-import { sqliteService } from '../services/sqliteService.js';
+import { influxService } from '../services/influxService.js';
 import { plantService } from '../services/plantService.js';
 import { logger } from '../utils/logger.js';
 import os from 'os';
@@ -49,7 +49,7 @@ router.get('/info', asyncHandler(async (req, res) => {
     },
     services: {
       mqtt: mqttClient.getConnectionStatus(),
-      database: sqliteService.getConnectionStatus()
+      database: await influxService.getSystemHealth()
     }
   };
 
@@ -64,7 +64,8 @@ router.get('/info', asyncHandler(async (req, res) => {
 router.get('/metrics', asyncHandler(async (req, res) => {
   const { timeRange = '1h' } = req.query;
   
-  const metrics = await sqliteService.getSystemMetrics(`-${timeRange}`);
+  // InfluxDB handles metrics automatically - return basic system info
+  const metrics = { message: 'System metrics available via InfluxDB queries' };
   const plantsSummary = plantService.getPlantSummary();
   
   const systemMetrics = {
@@ -131,18 +132,18 @@ router.post('/restart', asyncHandler(async (req, res) => {
       return 'MQTT service restarted';
     },
     database: async () => {
-      await sqliteService.close();
-      await sqliteService.initialize();
-      return 'SQLite service restarted';
+      await influxService.close();
+      await influxService.initialize();
+      return 'InfluxDB service restarted';
     },
     all: async () => {
       // This would trigger a full application restart
       // For safety, we'll just restart connections
       await mqttClient.disconnect();
-      await sqliteService.close();
+      await influxService.close();
       
       await mqttClient.initialize();
-      await sqliteService.initialize();
+      await influxService.initialize();
       
       return 'All services restarted';
     }
@@ -196,7 +197,8 @@ router.post('/cleanup', asyncHandler(async (req, res) => {
   
   try {
     if (!dryRun) {
-      await sqliteService.deleteOldData(retentionPeriod);
+      // InfluxDB handles data retention via bucket policies
+      logger.info(`Data retention handled by InfluxDB bucket policy: ${retentionPeriod}`);
     }
     
     // Get cleanup statistics
@@ -236,9 +238,9 @@ router.get('/config', asyncHandler(async (req, res) => {
       connected: mqttClient.getConnectionStatus().connected
     },
     database: {
-      path: process.env.DB_PATH,
-      type: 'SQLite',
-      connected: sqliteService.getConnectionStatus().connected
+      url: process.env.INFLUXDB_URL,
+      type: 'InfluxDB',
+      connected: (await influxService.getSystemHealth()).connected
     },
     watering: {
       enabled: process.env.ENABLE_AUTO_WATERING !== 'false',
@@ -283,9 +285,10 @@ router.post('/test', asyncHandler(async (req, res) => {
     }
     
     if (component === 'all' || component === 'database') {
+      const dbHealth = await influxService.getSystemHealth();
       testResults.database = {
-        connected: sqliteService.getConnectionStatus().connected,
-        status: sqliteService.getConnectionStatus().connected ? 'healthy' : 'unhealthy'
+        connected: dbHealth.connected,
+        status: dbHealth.connected ? 'healthy' : 'unhealthy'
       };
     }
     

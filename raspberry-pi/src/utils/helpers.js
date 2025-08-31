@@ -286,10 +286,10 @@ export const getLocalIPAddress = () => {
   const interfaces = networkInterfaces();
   
   for (const name of Object.keys(interfaces)) {
-    for (const interface of interfaces[name]) {
+    for (const networkInterface of interfaces[name]) {
       // Skip internal and non-IPv4 addresses
-      if (interface.family === 'IPv4' && !interface.internal) {
-        return interface.address;
+      if (networkInterface.family === 'IPv4' && !networkInterface.internal) {
+        return networkInterface.address;
       }
     }
   }

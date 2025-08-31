@@ -1,8 +1,6 @@
 import mqtt from 'mqtt';
 import { logger } from '../utils/logger.js';
-import { sqliteService } from './sqliteService.js';
 import { plantService } from './plantService.js';
-import { io } from '../app.js';
 
 class MQTTClient {
   constructor() {
@@ -144,7 +142,7 @@ class MQTTClient {
       }
 
       // Store in InfluxDB
-      await sqliteService.writeSensorData(plantId, data);
+      // Data is now written to InfluxDB via plantService.updateSensorData
       
       // Update plant service
       await plantService.updateSensorData(plantId, data);
@@ -341,10 +339,7 @@ class MQTTClient {
 export const mqttClient = new MQTTClient();
 
 // Make io available globally for MQTT service
-let ioInstance = null;
-
 export const setIO = (io) => {
-  ioInstance = io;
   global.io = io;
 };
 

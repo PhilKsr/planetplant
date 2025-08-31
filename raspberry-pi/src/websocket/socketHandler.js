@@ -2,6 +2,7 @@ import { logger } from '../utils/logger.js';
 import { plantService } from '../services/plantService.js';
 import { mqttClient } from '../services/mqttClient.js';
 import { healthService } from '../services/healthService.js';
+import { influxService } from '../services/influxService.js';
 import { setIO } from '../services/mqttClient.js';
 
 export const setupWebSocket = (io) => {
@@ -77,13 +78,8 @@ export const setupWebSocket = (io) => {
         const success = mqttClient.publishWateringCommand(plantId, duration);
         
         if (success) {
-          // Record watering event
-          await plantService.recordWateringEvent(plantId, {
-            duration,
-            triggerType: 'manual',
-            reason,
-            success: true
-          });
+          // Record watering event to InfluxDB
+          influxService.writeWateringEvent(plantId, 'esp32-001', 'manual', duration, duration * 0.005, true, reason);
           
           // Broadcast to all clients
           io.emit('wateringStarted', {
@@ -159,7 +155,7 @@ export const setupWebSocket = (io) => {
     // Handle system commands via WebSocket
     socket.on('systemCommand', async (data) => {
       try {
-        const { command, parameters = {} } = data;
+        const { command } = data;
         
         logger.info(`🔧 WebSocket system command: ${command}`);
         

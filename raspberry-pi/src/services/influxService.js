@@ -1,4 +1,4 @@
-import { InfluxDB, Point } from '@influxdata/influxdb-client';
+import { InfluxDB, Point, flux } from '@influxdata/influxdb-client';
 import { logger } from '../utils/logger.js';
 
 class InfluxService {
@@ -6,8 +6,14 @@ class InfluxService {
     this.client = null;
     this.writeApi = null;
     this.queryApi = null;
+    this.writeBuffer = [];
+    this.batchInterval = null;
+    this.retryQueue = [];
     this.isConnected = false;
     this.config = null;
+    this.maxRetries = 3;
+    this.batchSize = 100;
+    this.flushInterval = 5000;
   }
 
   async initialize() {
@@ -15,9 +21,13 @@ class InfluxService {
       this.config = {
         url: process.env.INFLUXDB_URL || 'http://localhost:8086',
         token: process.env.INFLUXDB_TOKEN,
-        org: process.env.INFLUXDB_ORG || 'plantplant',
-        bucket: process.env.INFLUXDB_BUCKET || 'sensors'
+        org: process.env.INFLUXDB_ORG || 'planetplant',
+        bucket: process.env.INFLUXDB_BUCKET || 'sensor-data'
       };
+
+      if (!this.config.token) {
+        throw new Error('INFLUXDB_TOKEN environment variable is required');
+      }
       
       logger.info('📊 InfluxDB Config:', { 
         url: this.config.url, 
@@ -31,20 +41,19 @@ class InfluxService {
         token: this.config.token
       });
 
-      this.writeApi = this.client.getWriteApi(this.config.org, this.config.bucket, 's');
+      this.writeApi = this.client.getWriteApi(this.config.org, this.config.bucket, 'ms');
       this.queryApi = this.client.getQueryApi(this.config.org);
       
-      // Configure write options
       this.writeApi.useDefaultTags({
         service: 'planetplant-server',
         version: process.env.npm_package_version || '1.0.0'
       });
 
-      // Test connection
       await this.testConnection();
+      this.startBatchProcessor();
       
       this.isConnected = true;
-      logger.info('📊 InfluxDB connection established');
+      logger.info('✅ InfluxDB service initialized successfully');
       
     } catch (error) {
       logger.error('📊 Failed to initialize InfluxDB:', error);
@@ -54,376 +63,438 @@ class InfluxService {
 
   async testConnection() {
     try {
-      const query = `buckets() |> filter(fn: (r) => r.name == "${this.config.bucket}") |> limit(n: 1)`;
-      const result = await this.queryApi.collectRows(query);
-      
-      if (result.length === 0) {
-        throw new Error(`Bucket "${this.config.bucket}" not found`);
-      }
-      
-      logger.info(`📊 Connected to InfluxDB bucket: ${this.config.bucket}`);
+      // Test connection by trying to get bucket info
+      const queryApi = this.client.getQueryApi(this.config.org);
+      await queryApi.queryRows('buckets()', {
+        next() {},
+        error(error) { throw error; }
+      });
+      logger.info('🏓 InfluxDB connection test successful');
     } catch (error) {
-      throw new Error(`InfluxDB connection test failed: ${error.message}`);
-    }
-  }
-
-  async writeSensorData(plantId, sensorData) {
-    if (!this.isConnected) {
-      throw new Error('InfluxDB not connected');
-    }
-
-    try {
-      const timestamp = new Date();
-      const points = [];
-
-      // Create points for each sensor reading
-      if (typeof sensorData.temperature === 'number') {
-        points.push(
-          new Point('sensor_data')
-            .tag('plant_id', plantId)
-            .tag('sensor_type', 'temperature')
-            .floatField('value', sensorData.temperature)
-            .stringField('unit', '°C')
-            .timestamp(timestamp)
-        );
-      }
-
-      if (typeof sensorData.humidity === 'number') {
-        points.push(
-          new Point('sensor_data')
-            .tag('plant_id', plantId)
-            .tag('sensor_type', 'humidity')
-            .floatField('value', sensorData.humidity)
-            .stringField('unit', '%')
-            .timestamp(timestamp)
-        );
-      }
-
-      if (typeof sensorData.moisture === 'number') {
-        points.push(
-          new Point('sensor_data')
-            .tag('plant_id', plantId)
-            .tag('sensor_type', 'moisture')
-            .floatField('value', sensorData.moisture)
-            .stringField('unit', '%')
-            .timestamp(timestamp)
-        );
-      }
-
-      if (typeof sensorData.light === 'number') {
-        points.push(
-          new Point('sensor_data')
-            .tag('plant_id', plantId)
-            .tag('sensor_type', 'light')
-            .floatField('value', sensorData.light)
-            .stringField('unit', 'lux')
-            .timestamp(timestamp)
-        );
-      }
-
-      // Write all points
-      this.writeApi.writePoints(points);
-      
-      // Force flush to ensure data is written
-      await this.writeApi.flush();
-      
-      logger.debug(`📊 Sensor data written for plant ${plantId}:`, sensorData);
-      
-    } catch (error) {
-      logger.error(`📊 Failed to write sensor data for plant ${plantId}:`, error);
+      logger.error('❌ InfluxDB connection test failed:', error);
       throw error;
     }
   }
 
-  async writeWateringEvent(plantId, eventData) {
-    if (!this.isConnected) {
-      throw new Error('InfluxDB not connected');
-    }
+  startBatchProcessor() {
+    this.batchInterval = setInterval(() => {
+      this.flushBuffer();
+    }, this.flushInterval);
 
+    logger.info(`🔄 Started batch processor (${this.flushInterval}ms interval)`);
+  }
+
+  async flushBuffer() {
+    if (this.writeBuffer.length === 0) return;
+
+    const points = this.writeBuffer.splice(0, this.batchSize);
+    
     try {
-      const point = new Point('watering_events')
-        .tag('plant_id', plantId)
-        .tag('trigger_type', eventData.triggerType || 'manual')
-        .intField('duration_ms', eventData.duration)
-        .floatField('volume_ml', eventData.volume || 0)
-        .booleanField('success', eventData.success !== false)
-        .stringField('reason', eventData.reason || '')
-        .timestamp(new Date());
-
-      this.writeApi.writePoint(point);
+      points.forEach(point => this.writeApi.writePoint(point));
       await this.writeApi.flush();
       
-      logger.info(`📊 Watering event recorded for plant ${plantId}:`, eventData);
-      
+      logger.debug(`📊 Flushed ${points.length} points to InfluxDB`);
     } catch (error) {
-      logger.error(`📊 Failed to write watering event for plant ${plantId}:`, error);
-      throw error;
+      logger.error('❌ Failed to flush points to InfluxDB:', error);
+      
+      this.retryQueue.push(...points.map(point => ({
+        point,
+        retryCount: 0,
+        timestamp: Date.now()
+      })));
+      
+      this.processRetryQueue();
     }
   }
 
-  async writeSystemEvent(eventType, eventData) {
-    if (!this.isConnected) {
-      throw new Error('InfluxDB not connected');
-    }
+  async processRetryQueue() {
+    const now = Date.now();
+    const retryableItems = this.retryQueue.filter(item => 
+      item.retryCount < this.maxRetries && 
+      (now - item.timestamp) > 1000 * Math.pow(2, item.retryCount)
+    );
 
-    try {
-      const point = new Point('system_events')
-        .tag('event_type', eventType)
-        .tag('severity', eventData.severity || 'info')
-        .stringField('message', eventData.message || '')
-        .stringField('details', JSON.stringify(eventData.details || {}))
-        .timestamp(new Date());
-
-      this.writeApi.writePoint(point);
-      await this.writeApi.flush();
-      
-      logger.debug(`📊 System event recorded: ${eventType}`);
-      
-    } catch (error) {
-      logger.error(`📊 Failed to write system event ${eventType}:`, error);
-      throw error;
+    for (const item of retryableItems) {
+      try {
+        this.writeApi.writePoint(item.point);
+        await this.writeApi.flush();
+        
+        const index = this.retryQueue.indexOf(item);
+        this.retryQueue.splice(index, 1);
+        
+        logger.debug('✅ Retry successful for point');
+      } catch (error) {
+        item.retryCount++;
+        logger.warn(`⚠️ Retry ${item.retryCount}/${this.maxRetries} failed:`, error);
+        
+        if (item.retryCount >= this.maxRetries) {
+          const index = this.retryQueue.indexOf(item);
+          this.retryQueue.splice(index, 1);
+          logger.error('❌ Max retries exceeded, dropping point');
+        }
+      }
     }
+  }
+
+  writeSensorData(deviceId, plantId, location, sensorType, value, unit, quality = 'good') {
+    const point = new Point('sensor_data')
+      .tag('device_id', deviceId)
+      .tag('plant_id', plantId)
+      .tag('location', location || 'unknown')
+      .tag('sensor_type', sensorType)
+      .floatField('value', parseFloat(value))
+      .stringField('unit', unit)
+      .stringField('quality', quality)
+      .timestamp(new Date());
+
+    this.writeBuffer.push(point);
+    
+    if (this.writeBuffer.length >= this.batchSize) {
+      this.flushBuffer();
+    }
+    
+    logger.debug(`📊 Queued sensor data: ${sensorType}=${value}${unit} for ${plantId}`);
+  }
+
+  writeWateringEvent(plantId, deviceId, triggerType, durationMs, volumeMl, success, reason) {
+    const point = new Point('watering_events')
+      .tag('plant_id', plantId)
+      .tag('device_id', deviceId)
+      .tag('trigger_type', triggerType)
+      .intField('duration_ms', durationMs)
+      .floatField('volume_ml', volumeMl || 0)
+      .booleanField('success', success)
+      .stringField('reason', reason || '')
+      .timestamp(new Date());
+
+    this.writeBuffer.push(point);
+    logger.info(`💧 Queued watering event for ${plantId}: ${durationMs}ms, success=${success}`);
+  }
+
+  writeSystemStats(cpuUsage, memoryUsage, diskUsage, temperature) {
+    const point = new Point('system_stats')
+      .tag('host', process.env.DEVICE_ID || 'unknown')
+      .floatField('cpu_usage', cpuUsage)
+      .floatField('memory_usage', memoryUsage)
+      .floatField('disk_usage', diskUsage)
+      .floatField('temperature', temperature)
+      .timestamp(new Date());
+
+    this.writeBuffer.push(point);
   }
 
   async getCurrentSensorData(plantId) {
-    if (!this.isConnected) {
-      throw new Error('InfluxDB not connected');
-    }
+    const fluxQuery = flux`
+      from(bucket: "${this.config.bucket}")
+        |> range(start: -1h)
+        |> filter(fn: (r) => r["_measurement"] == "sensor_data")
+        |> filter(fn: (r) => r["plant_id"] == "${plantId}")
+        |> group(columns: ["sensor_type"])
+        |> last()
+        |> yield(name: "last")
+    `;
 
     try {
-      const query = `
-        from(bucket: "${this.config.bucket}")
-          |> range(start: -1h)
-          |> filter(fn: (r) => r._measurement == "sensor_data")
-          |> filter(fn: (r) => r.plant_id == "${plantId}")
-          |> group(columns: ["sensor_type"])
-          |> last()
-          |> yield(name: "current")
-      `;
-
-      const rows = await this.queryApi.collectRows(query);
-      
-      const currentData = {};
-      rows.forEach(row => {
-        currentData[row.sensor_type] = {
-          value: row._value,
-          unit: row.unit,
-          timestamp: row._time
-        };
-      });
-
-      return currentData;
-      
-    } catch (error) {
-      logger.error(`📊 Failed to get current sensor data for plant ${plantId}:`, error);
-      throw error;
-    }
-  }
-
-  async getHistoricalSensorData(plantId, startTime = '-24h', endTime = 'now()') {
-    if (!this.isConnected) {
-      throw new Error('InfluxDB not connected');
-    }
-
-    try {
-      const query = `
-        from(bucket: "${this.config.bucket}")
-          |> range(start: ${startTime}, stop: ${endTime})
-          |> filter(fn: (r) => r._measurement == "sensor_data")
-          |> filter(fn: (r) => r.plant_id == "${plantId}")
-          |> group(columns: ["sensor_type"])
-          |> sort(columns: ["_time"])
-          |> yield(name: "historical")
-      `;
-
-      const rows = await this.queryApi.collectRows(query);
-      
-      const historicalData = {};
-      rows.forEach(row => {
-        if (!historicalData[row.sensor_type]) {
-          historicalData[row.sensor_type] = [];
+      const result = [];
+      await this.queryApi.queryRows(fluxQuery, {
+        next(row, tableMeta) {
+          const o = tableMeta.toObject(row);
+          result.push({
+            sensor_type: o.sensor_type,
+            value: o._value,
+            unit: o.unit,
+            timestamp: o._time,
+            quality: o.quality || 'good'
+          });
+        },
+        error(error) {
+          logger.error('❌ Query error:', error);
+          throw error;
         }
-        
-        historicalData[row.sensor_type].push({
-          value: row._value,
-          unit: row.unit,
-          timestamp: row._time
-        });
       });
 
-      return historicalData;
-      
+      return result;
     } catch (error) {
-      logger.error(`📊 Failed to get historical data for plant ${plantId}:`, error);
+      logger.error('❌ Failed to get current sensor data:', error);
       throw error;
     }
   }
 
-  async getWateringHistory(plantId, startTime = '-7d', endTime = 'now()') {
-    if (!this.isConnected) {
-      throw new Error('InfluxDB not connected');
-    }
+  async getHistoricalData(plantId, range = '24h', interval = '5m') {
+    const fluxQuery = flux`
+      from(bucket: "${this.config.bucket}")
+        |> range(start: -${range})
+        |> filter(fn: (r) => r["_measurement"] == "sensor_data")
+        |> filter(fn: (r) => r["plant_id"] == "${plantId}")
+        |> aggregateWindow(every: ${interval}, fn: mean, createEmpty: false)
+        |> yield(name: "mean")
+    `;
 
     try {
-      const query = `
-        from(bucket: "${this.config.bucket}")
-          |> range(start: ${startTime}, stop: ${endTime})
-          |> filter(fn: (r) => r._measurement == "watering_events")
-          |> filter(fn: (r) => r.plant_id == "${plantId}")
-          |> sort(columns: ["_time"], desc: true)
-          |> yield(name: "watering_history")
-      `;
-
-      const rows = await this.queryApi.collectRows(query);
-      
-      return rows.map(row => ({
-        timestamp: row._time,
-        duration: row.duration_ms,
-        volume: row.volume_ml,
-        triggerType: row.trigger_type,
-        success: row.success,
-        reason: row.reason
-      }));
-      
-    } catch (error) {
-      logger.error(`📊 Failed to get watering history for plant ${plantId}:`, error);
-      throw error;
-    }
-  }
-
-  async getSystemMetrics(startTime = '-1h') {
-    if (!this.isConnected) {
-      throw new Error('InfluxDB not connected');
-    }
-
-    try {
-      const query = `
-        from(bucket: "${this.config.bucket}")
-          |> range(start: ${startTime})
-          |> filter(fn: (r) => r._measurement == "system_events")
-          |> group(columns: ["event_type"])
-          |> count()
-          |> yield(name: "metrics")
-      `;
-
-      const rows = await this.queryApi.collectRows(query);
-      
-      const metrics = {};
-      rows.forEach(row => {
-        metrics[row.event_type] = row._value;
-      });
-
-      return metrics;
-      
-    } catch (error) {
-      logger.error('📊 Failed to get system metrics:', error);
-      throw error;
-    }
-  }
-
-  async getAllPlantsCurrentData() {
-    if (!this.isConnected) {
-      throw new Error('InfluxDB not connected');
-    }
-
-    try {
-      const query = `
-        from(bucket: "${this.config.bucket}")
-          |> range(start: -1h)
-          |> filter(fn: (r) => r._measurement == "sensor_data")
-          |> group(columns: ["plant_id", "sensor_type"])
-          |> last()
-          |> yield(name: "all_current")
-      `;
-
-      const rows = await this.queryApi.collectRows(query);
-      
-      const plantsData = {};
-      rows.forEach(row => {
-        if (!plantsData[row.plant_id]) {
-          plantsData[row.plant_id] = {};
+      const result = {};
+      await this.queryApi.queryRows(fluxQuery, {
+        next(row, tableMeta) {
+          const o = tableMeta.toObject(row);
+          if (!result[o.sensor_type]) {
+            result[o.sensor_type] = [];
+          }
+          result[o.sensor_type].push({
+            timestamp: o._time,
+            value: o._value,
+            unit: o.unit
+          });
+        },
+        error(error) {
+          logger.error('❌ Historical query error:', error);
+          throw error;
         }
-        
-        plantsData[row.plant_id][row.sensor_type] = {
-          value: row._value,
-          unit: row.unit,
-          timestamp: row._time
-        };
       });
 
-      return plantsData;
-      
+      return result;
     } catch (error) {
-      logger.error('📊 Failed to get all plants current data:', error);
+      logger.error('❌ Failed to get historical data:', error);
       throw error;
     }
   }
 
-  async deleteOldData(retentionPeriod = '30d') {
-    if (!this.isConnected) {
-      throw new Error('InfluxDB not connected');
-    }
+  async getWateringHistory(plantId, range = '7d') {
+    const fluxQuery = flux`
+      from(bucket: "${this.config.bucket}")
+        |> range(start: -${range})
+        |> filter(fn: (r) => r["_measurement"] == "watering_events")
+        |> filter(fn: (r) => r["plant_id"] == "${plantId}")
+        |> sort(columns: ["_time"], desc: true)
+        |> yield(name: "watering_history")
+    `;
 
     try {
-      const deleteApi = this.client.getDeleteAPI();
-      const start = new Date(Date.now() - this.parseDuration(retentionPeriod));
-      const stop = new Date('1970-01-01'); // Delete everything older than retention period
-      
-      await deleteApi.postDelete({
+      const result = [];
+      await this.queryApi.queryRows(fluxQuery, {
+        next(row, tableMeta) {
+          const o = tableMeta.toObject(row);
+          if (o._field === 'duration_ms') {
+            result.push({
+              timestamp: o._time,
+              duration_ms: o._value,
+              volume_ml: 0,
+              trigger_type: o.trigger_type,
+              success: true,
+              reason: o.reason || ''
+            });
+          }
+        },
+        error(error) {
+          logger.error('❌ Watering history query error:', error);
+          throw error;
+        }
+      });
+
+      return result;
+    } catch (error) {
+      logger.error('❌ Failed to get watering history:', error);
+      throw error;
+    }
+  }
+
+  async detectAnomalies(plantId, sensorType, hours = 24) {
+    const fluxQuery = flux`
+      from(bucket: "${this.config.bucket}")
+        |> range(start: -${hours}h)
+        |> filter(fn: (r) => r["_measurement"] == "sensor_data")
+        |> filter(fn: (r) => r["plant_id"] == "${plantId}")
+        |> filter(fn: (r) => r["sensor_type"] == "${sensorType}")
+        |> aggregateWindow(every: 1h, fn: mean)
+        |> movingAverage(n: 6)
+        |> map(fn: (r) => ({ r with anomaly: if r._value > r._value_ma * 1.5 or r._value < r._value_ma * 0.5 
+          then "high" else "normal" }))
+        |> filter(fn: (r) => r.anomaly == "high")
+        |> yield(name: "anomalies")
+    `;
+
+    try {
+      const anomalies = [];
+      await this.queryApi.queryRows(fluxQuery, {
+        next(row, tableMeta) {
+          const o = tableMeta.toObject(row);
+          anomalies.push({
+            timestamp: o._time,
+            sensor_type: sensorType,
+            value: o._value,
+            severity: o.anomaly,
+            message: `Unusual ${sensorType} reading detected`
+          });
+        },
+        error(error) {
+          logger.error('❌ Anomaly detection query error:', error);
+          throw error;
+        }
+      });
+
+      return anomalies;
+    } catch (error) {
+      logger.error('❌ Failed to detect anomalies:', error);
+      return [];
+    }
+  }
+
+  async getDailyAggregates(plantId, days = 7) {
+    const fluxQuery = flux`
+      from(bucket: "${this.config.bucket}")
+        |> range(start: -${days}d)
+        |> filter(fn: (r) => r["_measurement"] == "sensor_data")
+        |> filter(fn: (r) => r["plant_id"] == "${plantId}")
+        |> aggregateWindow(every: 1d, fn: mean, createEmpty: false)
+        |> group(columns: ["sensor_type"])
+        |> yield(name: "daily_averages")
+    `;
+
+    try {
+      const aggregates = {};
+      await this.queryApi.queryRows(fluxQuery, {
+        next(row, tableMeta) {
+          const o = tableMeta.toObject(row);
+          if (!aggregates[o.sensor_type]) {
+            aggregates[o.sensor_type] = [];
+          }
+          aggregates[o.sensor_type].push({
+            date: o._time.toISOString().split('T')[0],
+            avg: o._value,
+            unit: o.unit
+          });
+        },
+        error(error) {
+          logger.error('❌ Daily aggregates query error:', error);
+          throw error;
+        }
+      });
+
+      return aggregates;
+    } catch (error) {
+      logger.error('❌ Failed to get daily aggregates:', error);
+      throw error;
+    }
+  }
+
+  async getSystemHealth() {
+    try {
+      const bufferSize = this.writeBuffer.length;
+      const retryQueueSize = this.retryQueue.length;
+
+      return {
+        connected: this.isConnected,
+        buffer_size: bufferSize,
+        retry_queue_size: retryQueueSize,
+        url: this.config.url,
         org: this.config.org,
-        bucket: this.config.bucket,
-        body: {
-          start: stop.toISOString(),
-          stop: start.toISOString(),
-          predicate: '_measurement="sensor_data"'
-        }
-      });
-      
-      logger.info(`📊 Deleted sensor data older than ${retentionPeriod}`);
-      
+        bucket: this.config.bucket
+      };
     } catch (error) {
-      logger.error(`📊 Failed to delete old data:`, error);
-      throw error;
+      logger.error('❌ InfluxDB health check failed:', error);
+      return {
+        connected: false,
+        error: error.message
+      };
     }
   }
 
-  parseDuration(duration) {
-    const units = {
-      's': 1000,
-      'm': 60 * 1000,
-      'h': 60 * 60 * 1000,
-      'd': 24 * 60 * 60 * 1000
+  getGrafanaQueries() {
+    return {
+      moistureHistory: `from(bucket: "sensor-data")
+  |> range(start: -24h)
+  |> filter(fn: (r) => r["_measurement"] == "sensor_data")
+  |> filter(fn: (r) => r["sensor_type"] == "moisture")
+  |> aggregateWindow(every: 5m, fn: mean, createEmpty: false)`,
+
+      temperatureHumidity: `from(bucket: "sensor-data")
+  |> range(start: -24h)
+  |> filter(fn: (r) => r["_measurement"] == "sensor_data")
+  |> filter(fn: (r) => r["sensor_type"] == "temperature" or r["sensor_type"] == "humidity")
+  |> aggregateWindow(every: 10m, fn: mean, createEmpty: false)`,
+
+      wateringEfficiency: `from(bucket: "sensor-data")
+  |> range(start: -7d)
+  |> filter(fn: (r) => r["_measurement"] == "watering_events")
+  |> filter(fn: (r) => r["_field"] == "success")
+  |> aggregateWindow(every: 1d, fn: sum, createEmpty: false)`,
+
+      sensorComparison: `from(bucket: "sensor-data")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r["_measurement"] == "sensor_data")
+  |> group(columns: ["plant_id", "sensor_type"])
+  |> last()`,
+
+      trendAnalysis: `from(bucket: "sensor-data")
+  |> range(start: -30d)
+  |> filter(fn: (r) => r["_measurement"] == "sensor_data")
+  |> filter(fn: (r) => r["sensor_type"] == "moisture")
+  |> aggregateWindow(every: 1d, fn: mean, createEmpty: false)
+  |> derivative(unit: 1d, nonNegative: false)
+  |> yield(name: "moisture_trend")`
     };
-    
-    const match = duration.match(/^(\d+)([smhd])$/);
-    if (!match) {
-      throw new Error(`Invalid duration format: ${duration}`);
+  }
+
+  async getActiveAlerts() {
+    const fluxQuery = flux`
+      from(bucket: "${this.config.bucket}")
+        |> range(start: -1h)
+        |> filter(fn: (r) => r["_measurement"] == "sensor_data")
+        |> group(columns: ["plant_id", "sensor_type"])
+        |> last()
+        |> map(fn: (r) => ({ r with 
+          alert_type: if r.sensor_type == "moisture" and r._value < 20.0 then "low_moisture"
+                     else if r.sensor_type == "temperature" and r._value > 35.0 then "high_temperature"
+                     else if r.sensor_type == "temperature" and r._value < 10.0 then "low_temperature"
+                     else "normal"
+        }))
+        |> filter(fn: (r) => r.alert_type != "normal")
+        |> yield(name: "alerts")
+    `;
+
+    try {
+      const alerts = [];
+      await this.queryApi.queryRows(fluxQuery, {
+        next(row, tableMeta) {
+          const o = tableMeta.toObject(row);
+          alerts.push({
+            plant_id: o.plant_id,
+            sensor_type: o.sensor_type,
+            value: o._value,
+            unit: o.unit,
+            alert_type: o.alert_type,
+            timestamp: o._time,
+            severity: o.alert_type.includes('low') ? 'warning' : 'critical'
+          });
+        },
+        error(error) {
+          logger.error('❌ Alerts query error:', error);
+          throw error;
+        }
+      });
+
+      return alerts;
+    } catch (error) {
+      logger.error('❌ Failed to get active alerts:', error);
+      return [];
     }
-    
-    const [, value, unit] = match;
-    return parseInt(value) * units[unit];
   }
 
   async close() {
-    if (this.writeApi) {
-      try {
-        await this.writeApi.close();
-        logger.info('📊 InfluxDB write API closed');
-      } catch (error) {
-        logger.error('📊 Error closing InfluxDB write API:', error);
+    try {
+      if (this.batchInterval) {
+        clearInterval(this.batchInterval);
       }
-    }
-    
-    this.isConnected = false;
-  }
 
-  getConnectionStatus() {
-    return {
-      connected: this.isConnected,
-      url: this.config.url,
-      bucket: this.config.bucket,
-      org: this.config.org
-    };
+      await this.flushBuffer();
+
+      if (this.writeApi) {
+        await this.writeApi.close();
+      }
+
+      this.isConnected = false;
+      logger.info('🔌 InfluxDB service closed');
+    } catch (error) {
+      logger.error('❌ Error closing InfluxDB service:', error);
+    }
   }
 }
 
