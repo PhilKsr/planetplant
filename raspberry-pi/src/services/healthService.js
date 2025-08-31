@@ -1,7 +1,7 @@
 import os from 'os';
 import { logger, createTimer } from '../utils/logger.js';
 import { mqttClient } from './mqttClient.js';
-import { influxService } from './influxService.js';
+import { sqliteService } from './sqliteService.js';
 import { plantService } from './plantService.js';
 import { automationService } from './automationService.js';
 
@@ -65,7 +65,7 @@ class HealthService {
 
       // Check system components
       healthStatus.components.mqtt = await this.checkMQTTHealth();
-      healthStatus.components.influxdb = await this.checkInfluxDBHealth();
+      healthStatus.components.database = await this.checkDatabaseHealth();
       healthStatus.components.automation = this.checkAutomationHealth();
       healthStatus.components.plants = await this.checkPlantsHealth();
 
@@ -140,23 +140,24 @@ class HealthService {
     }
   }
 
-  async checkInfluxDBHealth() {
-    const timer = createTimer('health.checkInfluxDBHealth');
+  async checkDatabaseHealth() {
+    const timer = createTimer('health.checkDatabaseHealth');
     
     try {
-      const influxStatus = influxService.getConnectionStatus();
+      const databaseStatus = sqliteService.getConnectionStatus();
       
-      // Test connection with a simple query
+      // Test database with a simple query
       const startTime = Date.now();
-      await influxService.testConnection();
+      const stats = sqliteService.getStats();
       const responseTime = Date.now() - startTime;
 
       const health = {
-        status: influxStatus.connected ? 'healthy' : 'unhealthy',
-        connected: influxStatus.connected,
+        status: databaseStatus.connected ? 'healthy' : 'unhealthy',
+        connected: databaseStatus.connected,
         responseTime: `${responseTime}ms`,
-        url: influxStatus.url,
-        bucket: influxStatus.bucket,
+        path: databaseStatus.path,
+        type: databaseStatus.type,
+        stats,
         lastCheck: new Date().toISOString()
       };
 
@@ -406,8 +407,8 @@ class HealthService {
         case 'mqtt':
           health = await this.checkMQTTHealth();
           break;
-        case 'influxdb':
-          health = await this.checkInfluxDBHealth();
+        case 'database':
+          health = await this.checkDatabaseHealth();
           break;
         case 'automation':
           health = this.checkAutomationHealth();
@@ -467,7 +468,7 @@ class HealthService {
         },
         services: {
           mqtt: mqttClient.getConnectionStatus(),
-          influxdb: influxService.getConnectionStatus(),
+          database: sqliteService.getConnectionStatus(),
           automation: automationService.getAutomationStatus()
         }
       };
@@ -485,13 +486,13 @@ class HealthService {
   async isSystemReady() {
     try {
       const mqttStatus = mqttClient.getConnectionStatus();
-      const influxStatus = influxService.getConnectionStatus();
+      const databaseStatus = sqliteService.getConnectionStatus();
       
       return {
-        ready: mqttStatus.connected && influxStatus.connected,
+        ready: mqttStatus.connected && databaseStatus.connected,
         components: {
           mqtt: mqttStatus.connected,
-          influxdb: influxStatus.connected
+          database: databaseStatus.connected
         },
         timestamp: new Date().toISOString()
       };

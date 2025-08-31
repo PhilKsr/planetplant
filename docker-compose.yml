@@ -1,120 +1,131 @@
-version: '3.8'
+# DOCKER SERVICES DISABLED - Using native SQLite and Mosquitto for Raspberry Pi Zero 2 W
+# 
+# For native Mosquitto setup on Raspberry Pi:
+# sudo apt install mosquitto mosquitto-clients
+# sudo cp config/mosquitto.conf /etc/mosquitto/conf.d/
+# sudo systemctl enable mosquitto
+# sudo systemctl start mosquitto
+#
+# SQLite database will be created automatically by the Node.js server
+# No Redis needed for basic functionality
 
-services:
-  # InfluxDB Time Series Database
-  influxdb:
-    image: influxdb:2.7-alpine
-    container_name: plantplant-influxdb
-    restart: unless-stopped
-    ports:
-      - "8086:8086"
-    environment:
-      - DOCKER_INFLUXDB_INIT_MODE=setup
-      - DOCKER_INFLUXDB_INIT_USERNAME=admin
-      - DOCKER_INFLUXDB_INIT_PASSWORD=plantplant123
-      - DOCKER_INFLUXDB_INIT_ORG=plantplant
-      - DOCKER_INFLUXDB_INIT_BUCKET=sensors
-      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=plantplant-super-secret-auth-token
-    volumes:
-      - influxdb-storage:/var/lib/influxdb2
-      - influxdb-config:/etc/influxdb2
-    networks:
-      - plantplant-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8086/ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
+# version: '3.8'
 
-  # Mosquitto MQTT Broker
-  mosquitto:
-    image: eclipse-mosquitto:2.0-openssl
-    container_name: plantplant-mosquitto
-    restart: unless-stopped
-    ports:
-      - "1883:1883"
-      - "9001:9001"
-    volumes:
-      - mosquitto-config:/mosquitto/config
-      - mosquitto-data:/mosquitto/data
-      - mosquitto-logs:/mosquitto/log
-      - ./config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
-    networks:
-      - plantplant-network
-    healthcheck:
-      test: ["CMD-SHELL", "mosquitto_pub -h localhost -t test -m 'health check' || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-
-  # Optional: Grafana for advanced data visualization
-  grafana:
-    image: grafana/grafana-oss:10.1.0
-    container_name: plantplant-grafana
-    restart: unless-stopped
-    ports:
-      - "3001:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=plantplant123
-      - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
-    volumes:
-      - grafana-storage:/var/lib/grafana
-      - ./config/grafana/provisioning:/etc/grafana/provisioning
-    networks:
-      - plantplant-network
-    depends_on:
-      influxdb:
-        condition: service_healthy
-    profiles:
-      - monitoring
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-
-  # Redis for caching and session management
-  redis:
-    image: redis:7-alpine
-    container_name: plantplant-redis
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-    command: redis-server --appendonly yes --requirepass plantplant123
-    volumes:
-      - redis-data:/data
-    networks:
-      - plantplant-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-
-volumes:
-  influxdb-storage:
-    driver: local
-  influxdb-config:
-    driver: local
-  mosquitto-config:
-    driver: local
-  mosquitto-data:
-    driver: local
-  mosquitto-logs:
-    driver: local
-  grafana-storage:
-    driver: local
-  redis-data:
-    driver: local
-
-networks:
-  plantplant-network:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
+# services:
+#   # InfluxDB Time Series Database - REPLACED WITH SQLITE
+#   influxdb:
+#     image: influxdb:2.7-alpine
+#     container_name: plantplant-influxdb
+#     restart: unless-stopped
+#     ports:
+#       - "8086:8086"
+#     environment:
+#       - DOCKER_INFLUXDB_INIT_MODE=setup
+#       - DOCKER_INFLUXDB_INIT_USERNAME=admin
+#       - DOCKER_INFLUXDB_INIT_PASSWORD=plantplant123
+#       - DOCKER_INFLUXDB_INIT_ORG=plantplant
+#       - DOCKER_INFLUXDB_INIT_BUCKET=sensors
+#       - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=plantplant-super-secret-auth-token
+#     volumes:
+#       - influxdb-storage:/var/lib/influxdb2
+#       - influxdb-config:/etc/influxdb2
+#     networks:
+#       - plantplant-network
+#     healthcheck:
+#       test: ["CMD", "curl", "-f", "http://localhost:8086/ping"]
+#       interval: 30s
+#       timeout: 10s
+#       retries: 3
+#       start_period: 30s
+#
+#   # Mosquitto MQTT Broker - NOW USING NATIVE INSTALLATION
+#   mosquitto:
+#     image: eclipse-mosquitto:2.0-openssl
+#     container_name: plantplant-mosquitto
+#     restart: unless-stopped
+#     ports:
+#       - "1883:1883"
+#       - "9001:9001"
+#     volumes:
+#       - mosquitto-config:/mosquitto/config
+#       - mosquitto-data:/mosquitto/data
+#       - mosquitto-logs:/mosquitto/log
+#       - ./config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+#     networks:
+#       - plantplant-network
+#     healthcheck:
+#       test: ["CMD-SHELL", "mosquitto_pub -h localhost -t test -m 'health check' || exit 1"]
+#       interval: 30s
+#       timeout: 10s
+#       retries: 3
+#       start_period: 10s
+#
+#   # Optional: Grafana for advanced data visualization
+#   grafana:
+#     image: grafana/grafana-oss:10.1.0
+#     container_name: plantplant-grafana
+#     restart: unless-stopped
+#     ports:
+#       - "3001:3000"
+#     environment:
+#       - GF_SECURITY_ADMIN_PASSWORD=plantplant123
+#       - GF_USERS_ALLOW_SIGN_UP=false
+#       - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+#     volumes:
+#       - grafana-storage:/var/lib/grafana
+#       - ./config/grafana/provisioning:/etc/grafana/provisioning
+#     networks:
+#       - plantplant-network
+#     depends_on:
+#       influxdb:
+#         condition: service_healthy
+#     profiles:
+#       - monitoring
+#     healthcheck:
+#       test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+#       interval: 30s
+#       timeout: 10s
+#       retries: 3
+#       start_period: 30s
+#
+#   # Redis for caching and session management - REMOVED FOR SIMPLICITY
+#   redis:
+#     image: redis:7-alpine
+#     container_name: plantplant-redis
+#     restart: unless-stopped
+#     ports:
+#       - "6379:6379"
+#     command: redis-server --appendonly yes --requirepass plantplant123
+#     volumes:
+#       - redis-data:/data
+#     networks:
+#       - plantplant-network
+#     healthcheck:
+#       test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+#       interval: 30s
+#       timeout: 10s
+#       retries: 3
+#       start_period: 10s
+#
+# volumes:
+#   influxdb-storage:
+#     driver: local
+#   influxdb-config:
+#     driver: local
+#   mosquitto-config:
+#     driver: local
+#   mosquitto-data:
+#     driver: local
+#   mosquitto-logs:
+#     driver: local
+#   grafana-storage:
+#     driver: local
+#   redis-data:
+#     driver: local
+#
+# networks:
+#   plantplant-network:
+#     driver: bridge
+#     ipam:
+#       config:
+#         - subnet: 172.20.0.0/16

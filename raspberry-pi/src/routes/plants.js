@@ -2,7 +2,7 @@ import express from 'express';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { plantService } from '../services/plantService.js';
 import { mqttClient } from '../services/mqttClient.js';
-import { influxService } from '../services/influxService.js';
+import { sqliteService } from '../services/sqliteService.js';
 import { logger } from '../utils/logger.js';
 
 const router = express.Router();
@@ -49,7 +49,7 @@ router.get('/:id/current', asyncHandler(async (req, res) => {
   // Ensure plant exists
   await plantService.getPlantById(id);
   
-  const currentData = await influxService.getCurrentSensorData(id);
+  const currentData = await sqliteService.getCurrentSensorData(id);
   
   res.json({
     success: true,
@@ -129,7 +129,7 @@ router.get('/:id/watering/history', asyncHandler(async (req, res) => {
   // Ensure plant exists
   await plantService.getPlantById(id);
   
-  const wateringHistory = await influxService.getWateringHistory(id, `-${timeRange}`);
+  const wateringHistory = await sqliteService.getWateringHistory(id, `-${timeRange}`);
   
   res.json({
     success: true,

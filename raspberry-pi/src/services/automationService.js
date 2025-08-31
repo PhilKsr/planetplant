@@ -2,7 +2,7 @@ import cron from 'node-cron';
 import { logger, createTimer } from '../utils/logger.js';
 import { plantService } from './plantService.js';
 import { mqttClient } from './mqttClient.js';
-import { influxService } from './influxService.js';
+import { sqliteService } from './sqliteService.js';
 
 class AutomationService {
   constructor() {
@@ -188,7 +188,7 @@ class AutomationService {
       }
       
       // Record system event
-      await influxService.writeSystemEvent('automatic_watering', {
+      await sqliteService.writeSystemEvent('automatic_watering', {
         severity: 'info',
         message: `Automatic watering for plant ${plant.name}`,
         details: {
@@ -230,7 +230,7 @@ class AutomationService {
         logger.warn(`💊 Health check: ${offlinePlants.length} plants are offline`);
         
         // Record system event
-        await influxService.writeSystemEvent('health_check_warning', {
+        await sqliteService.writeSystemEvent('health_check_warning', {
           severity: 'warning',
           message: 'Plants offline detected',
           details: {
@@ -253,13 +253,13 @@ class AutomationService {
       
       // Clean up old sensor data based on retention policy
       const retentionPeriod = process.env.SENSOR_DATA_RETENTION || '30d';
-      await influxService.deleteOldData(retentionPeriod);
+      await sqliteService.deleteOldData(retentionPeriod);
       
       // Reset daily statistics
       this.resetDailyStats();
       
       // Record cleanup event
-      await influxService.writeSystemEvent('daily_cleanup', {
+      await sqliteService.writeSystemEvent('daily_cleanup', {
         severity: 'info',
         message: 'Daily cleanup completed',
         details: {
@@ -300,7 +300,7 @@ class AutomationService {
       }
       
       // Record automation statistics
-      await influxService.writeSystemEvent('automation_stats', {
+      await sqliteService.writeSystemEvent('automation_stats', {
         severity: 'info',
         message: 'Automation statistics update',
         details: {

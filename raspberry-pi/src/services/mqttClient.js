@@ -1,6 +1,6 @@
 import mqtt from 'mqtt';
 import { logger } from '../utils/logger.js';
-import { influxService } from './influxService.js';
+import { sqliteService } from './sqliteService.js';
 import { plantService } from './plantService.js';
 import { io } from '../app.js';
 
@@ -144,7 +144,7 @@ class MQTTClient {
       }
 
       // Store in InfluxDB
-      await influxService.writeSensorData(plantId, data);
+      await sqliteService.writeSensorData(plantId, data);
       
       // Update plant service
       await plantService.updateSensorData(plantId, data);

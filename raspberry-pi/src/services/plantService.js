@@ -1,5 +1,5 @@
 import { logger, createTimer } from '../utils/logger.js';
-import { influxService } from './influxService.js';
+import { sqliteService } from './sqliteService.js';
 import { NotFoundError, ValidationError } from '../middleware/errorHandler.js';
 
 class PlantService {
@@ -133,7 +133,7 @@ class PlantService {
       // Enrich with current sensor data from InfluxDB
       for (const plant of plants) {
         try {
-          const currentData = await influxService.getCurrentSensorData(plant.id);
+          const currentData = await sqliteService.getCurrentSensorData(plant.id);
           if (Object.keys(currentData).length > 0) {
             plant.currentData = {
               ...plant.currentData,
@@ -166,7 +166,7 @@ class PlantService {
 
       // Get current sensor data
       try {
-        const currentData = await influxService.getCurrentSensorData(plantId);
+        const currentData = await sqliteService.getCurrentSensorData(plantId);
         if (Object.keys(currentData).length > 0) {
           plant.currentData = {
             ...plant.currentData,
@@ -397,10 +397,10 @@ class PlantService {
       const startTime = `-${timeRange}`;
       
       // Get sensor data history
-      const sensorHistory = await influxService.getHistoricalSensorData(plantId, startTime);
+      const sensorHistory = await sqliteService.getHistoricalSensorData(plantId, startTime);
       
       // Get watering history
-      const wateringHistory = await influxService.getWateringHistory(plantId, startTime);
+      const wateringHistory = await sqliteService.getWateringHistory(plantId, startTime);
 
       const result = {
         plantId,
@@ -434,7 +434,7 @@ class PlantService {
       plant.updated = new Date().toISOString();
 
       // Record in InfluxDB
-      await influxService.writeWateringEvent(plantId, eventData);
+      await sqliteService.writeWateringEvent(plantId, eventData);
 
       // Log the event
       logger.logWateringEvent(plantId, eventData);
