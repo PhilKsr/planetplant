@@ -1,0 +1,19 @@
+{
+  "env": {
+    "node": true,
+    "es2022": true
+  },
+  "extends": [
+    "eslint:recommended"
+  ],
+  "parserOptions": {
+    "ecmaVersion": 2022,
+    "sourceType": "module"
+  },
+  "rules": {
+    "no-console": "off",
+    "max-len": ["error", { "code": 120 }],
+    "no-underscore-dangle": "off",
+    "no-param-reassign": ["error", { "props": false }]
+  }
+}
