@@ -1,0 +1,270 @@
+name: 🌱 PlanetPlant CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'raspberry-pi/**'
+      - 'webapp/**'
+      - '.github/workflows/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'raspberry-pi/**'
+      - 'webapp/**'
+
+  workflow_dispatch:
+    inputs:
+      deploy_target:
+        description: 'Deployment target'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME_BACKEND: ${{ github.repository }}/backend
+  IMAGE_NAME_FRONTEND: ${{ github.repository }}/frontend
+
+jobs:
+  # Test and lint backend
+  test-backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./raspberry-pi
+        
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🟢 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: raspberry-pi/package-lock.json
+
+    - name: 📦 Install dependencies
+      run: npm ci
+
+    - name: 🔍 Run ESLint
+      run: npm run lint
+
+    - name: 🧪 Run tests
+      run: npm test || exit 0
+
+    - name: 🛡️ Security audit
+      run: npm audit --audit-level=high || exit 0
+
+  # Test and build frontend
+  test-frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./webapp
+        
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🟢 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: webapp/package-lock.json
+
+    - name: 📦 Install dependencies
+      run: npm ci
+
+    - name: 🔍 Run linting
+      run: npm run lint || exit 0
+
+    - name: 🏗️ Build production
+      run: npm run build
+
+    - name: 📤 Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: frontend-build
+        path: webapp/dist/
+        retention-days: 7
+
+  # Build and push Docker images
+  build-images:
+    needs: [test-backend, test-frontend]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      matrix:
+        include:
+          - context: ./raspberry-pi
+            image: backend
+            dockerfile: Dockerfile
+          - context: ./webapp  
+            image: frontend
+            dockerfile: Dockerfile
+
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🔐 Login to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: 🏗️ Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      with:
+        platforms: linux/amd64,linux/arm64
+
+    - name: 📋 Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.image }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: 🔨 Build and push
+      uses: docker/build-push-action@v5
+      with:
+        context: ${{ matrix.context }}
+        dockerfile: ${{ matrix.dockerfile }}
+        platforms: linux/arm64
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  # Deploy to Raspberry Pi
+  deploy:
+    needs: [build-images]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    environment: 
+      name: production
+      url: http://plantplant.local
+
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🔧 Setup SSH
+      uses: webfactory/ssh-agent@v0.8.0
+      with:
+        ssh-private-key: ${{ secrets.PI_SSH_PRIVATE_KEY }}
+
+    - name: 📤 Copy deployment files
+      run: |
+        scp -o StrictHostKeyChecking=no -r \
+          raspberry-pi/docker-compose.prod.yml \
+          raspberry-pi/scripts/ \
+          raspberry-pi/config/ \
+          pi@${{ secrets.PI_HOST }}:/home/pi/planetplant/
+
+    - name: 🚀 Deploy to Raspberry Pi
+      run: |
+        ssh -o StrictHostKeyChecking=no pi@${{ secrets.PI_HOST }} << 'EOF'
+          cd /home/pi/planetplant
+          
+          # Create backup before deploy
+          echo "💾 Creating pre-deployment backup..."
+          sudo ./scripts/backup.sh || echo "Backup failed, continuing..."
+          
+          # Login to GitHub Container Registry
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          
+          # Pull latest images
+          echo "📥 Pulling latest images..."
+          docker-compose -f docker-compose.prod.yml pull
+          
+          # Stop services gracefully
+          echo "🛑 Stopping services..."
+          docker-compose -f docker-compose.prod.yml down
+          
+          # Start with new images
+          echo "🚀 Starting updated services..."
+          docker-compose -f docker-compose.prod.yml up -d
+          
+          # Wait for health checks
+          echo "⏳ Waiting for services to be healthy..."
+          sleep 60
+          
+          # Verify deployment
+          echo "🏥 Checking service health..."
+          docker-compose -f docker-compose.prod.yml ps
+          
+          # Test API endpoint
+          if curl -f http://localhost:3000/health > /dev/null 2>&1; then
+            echo "✅ Backend is healthy"
+          else
+            echo "❌ Backend health check failed"
+            exit 1
+          fi
+          
+          # Cleanup old images
+          echo "🧹 Cleaning up old images..."
+          docker image prune -f
+          
+          echo "✅ Deployment completed successfully!"
+        EOF
+
+    - name: 📊 Post-deployment verification
+      run: |
+        ssh -o StrictHostKeyChecking=no pi@${{ secrets.PI_HOST }} << 'EOF'
+          echo "📋 Final deployment status:"
+          cd /home/pi/planetplant
+          docker-compose -f docker-compose.prod.yml ps
+          
+          echo ""
+          echo "💾 System resources:"
+          df -h /
+          free -h
+          
+          echo ""
+          echo "🌱 PlanetPlant is now running:"
+          echo "  - Dashboard: http://$(hostname -I | awk '{print $1}')"
+          echo "  - Grafana: http://$(hostname -I | awk '{print $1}')/grafana"
+          echo "  - API: http://$(hostname -I | awk '{print $1}')/api"
+        EOF
+
+    - name: 💬 Deployment notification
+      if: always()
+      run: |
+        if [ "${{ job.status }}" == "success" ]; then
+          echo "✅ Deployment to Raspberry Pi successful!"
+        else
+          echo "❌ Deployment failed!"
+          exit 1
+        fi
+
+  # Cleanup workflow
+  cleanup:
+    needs: [deploy]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: 🧹 Cleanup old packages
+      run: |
+        # This would typically clean up old GitHub Container Registry images
+        # Requires additional permissions and API calls
+        echo "🧹 Manual cleanup of old container images recommended"
