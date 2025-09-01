@@ -20,7 +20,6 @@ services:
     volumes:
       - influxdb-storage:/var/lib/influxdb2
       - influxdb-config:/etc/influxdb2
-      - ./config/influxdb:/docker-entrypoint-initdb.d
     networks:
       - planetplant-network
     healthcheck:
@@ -65,7 +64,7 @@ services:
     networks:
       - planetplant-network
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      test: ["CMD", "redis-cli", "-a", "plantplant123", "ping"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -171,4 +170,4 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.20.0.0/16
+        - subnet: 172.26.0.0/16
