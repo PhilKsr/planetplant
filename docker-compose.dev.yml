@@ -20,6 +20,7 @@ services:
     volumes:
       - influxdb-storage:/var/lib/influxdb2
       - influxdb-config:/etc/influxdb2
+      - ./config/influxdb:/docker-entrypoint-initdb.d
     networks:
       - planetplant-network
     healthcheck:
@@ -91,9 +92,13 @@ services:
       - INFLUXDB_TOKEN=${INFLUXDB_TOKEN:-plantplant-super-secret-auth-token}
       - INFLUXDB_ORG=${INFLUXDB_ORG:-planetplant}
       - INFLUXDB_BUCKET=${INFLUXDB_BUCKET:-sensor-data}
-      - MQTT_BROKER_URL=mqtt://mosquitto:1883
+      - MQTT_HOST=mosquitto
+      - MQTT_PORT=1883
       - MQTT_CLIENT_ID=planetplant-server-dev
-      - REDIS_URL=redis://redis:6379
+      - MQTT_USERNAME=${MQTT_USERNAME:-}
+      - MQTT_PASSWORD=${MQTT_PASSWORD:-}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD:-plantplant123}
       - JWT_SECRET=${JWT_SECRET:-development-jwt-secret-key}
       - CORS_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:3001
@@ -148,6 +153,51 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+
+  # Frontend React PWA (Development with Vite)
+  frontend:
+    build:
+      context: ./webapp
+      dockerfile: Dockerfile.dev
+    container_name: planetplant-frontend-dev
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - ./webapp/src:/app/src:ro
+      - ./webapp/public:/app/public:ro
+      - ./webapp/package.json:/app/package.json:ro
+    networks:
+      - planetplant-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5173/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # Nginx Reverse Proxy for Development
+  nginx-proxy:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile.dev
+    container_name: planetplant-nginx-dev
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    networks:
+      - planetplant-network
+    depends_on:
+      - backend
+      - frontend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
 volumes:
   influxdb-storage:
