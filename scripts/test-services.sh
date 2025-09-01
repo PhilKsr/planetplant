@@ -336,15 +336,21 @@ main() {
     # System resources
     echo -e "\n${BLUE}📊 System Resources${NC}"
     
-    # Memory usage
-    local memory_usage=$(free | grep Mem | awk '{printf "%.1f", $3/$2 * 100.0}')
-    if (( $(echo "$memory_usage < 80.0" | bc -l) )); then
-        print_test_result "Memory Usage" "PASS" "(${memory_usage}%)"
+    # System resources (cross-platform)
+    if command -v free &> /dev/null; then
+        # Linux
+        local memory_usage=$(free | grep Mem | awk '{printf "%.1f", $3/$2 * 100.0}')
+        if (( $(echo "$memory_usage < 80.0" | bc -l) )); then
+            print_test_result "Memory Usage" "PASS" "(${memory_usage}%)"
+        else
+            print_test_result "Memory Usage" "FAIL" "(${memory_usage}% - too high)"
+        fi
     else
-        print_test_result "Memory Usage" "FAIL" "(${memory_usage}% - too high)"
+        # macOS
+        print_test_result "Memory Usage" "SKIP" "(macOS - use Activity Monitor)"
     fi
     
-    # Disk usage
+    # Disk usage (cross-platform)
     local disk_usage=$(df / | tail -1 | awk '{print $5}' | sed 's/%//')
     if [ "$disk_usage" -lt 85 ]; then
         print_test_result "Disk Usage" "PASS" "(${disk_usage}%)"
@@ -352,12 +358,16 @@ main() {
         print_test_result "Disk Usage" "FAIL" "(${disk_usage}% - too high)"
     fi
     
-    # Load average
-    local load_avg=$(uptime | awk -F'load average:' '{print $2}' | awk '{print $1}' | sed 's/,//')
-    if (( $(echo "$load_avg < 4.0" | bc -l) )); then
-        print_test_result "System Load" "PASS" "($load_avg)"
+    # Load average (cross-platform)
+    local load_avg=$(uptime | awk -F'load average' '{print $2}' | awk '{print $1}' | sed 's/[,:]//' | xargs)
+    if command -v bc &> /dev/null; then
+        if (( $(echo "$load_avg < 4.0" | bc -l 2>/dev/null) )); then
+            print_test_result "System Load" "PASS" "($load_avg)"
+        else
+            print_test_result "System Load" "FAIL" "($load_avg - too high)"
+        fi
     else
-        print_test_result "System Load" "FAIL" "($load_avg - too high)"
+        print_test_result "System Load" "SKIP" "(bc calculator not available)"
     fi
     
     # Final summary
