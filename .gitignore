@@ -42,6 +42,11 @@ coverage/
 logs/
 *.log
 
+# Data directories
+data/
+raspberry-pi/data/
+raspberry-pi/logs/
+
 # Dependency directories
 node_modules/
 jspm_packages/
