@@ -1,8 +1,9 @@
 # Development Dockerfile with hot-reload for Mac
-FROM node:18-alpine
+ARG NODE_VERSION=20-alpine
+FROM node:${NODE_VERSION}
 
 # Install development tools
-RUN apk add --no-cache python3 make g++ sqlite curl
+RUN apk add --no-cache python3 make g++ curl
 
 WORKDIR /app
 
@@ -20,7 +21,7 @@ EXPOSE 3000 9229
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:3000/health || exit 1
+  CMD curl -f http://localhost:3000/api/system/status || exit 1
 
 # Start with nodemon for hot-reload and debugging
 CMD ["npm", "run", "dev", "--", "--inspect=0.0.0.0:9229"]

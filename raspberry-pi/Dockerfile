@@ -1,7 +1,8 @@
 # Multi-stage build for optimal ARM64 performance on Raspberry Pi 5
-FROM node:18-alpine AS base
+ARG NODE_VERSION=20-alpine
+FROM node:${NODE_VERSION} AS base
 WORKDIR /app
-RUN apk add --no-cache python3 make g++ sqlite
+RUN apk add --no-cache python3 make g++ curl
 
 # Dependencies stage
 FROM base AS dependencies
@@ -23,8 +24,8 @@ RUN npm run test || true
 FROM base AS production
 RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
 
-# Install PM2 globally
-RUN npm install -g pm2@5.4.2
+# Install PM2 globally for ARM64
+RUN npm install -g pm2@5.4.2 --unsafe-perm
 
 # Copy dependencies
 COPY --from=dependencies /app/node_modules ./node_modules
@@ -35,8 +36,6 @@ COPY --chown=nodejs:nodejs . .
 # Create required directories
 RUN mkdir -p data logs && chown -R nodejs:nodejs data logs
 
-# Initialize SQLite database
-RUN node db-init.js
 
 USER nodejs
 
@@ -44,7 +43,7 @@ EXPOSE 3000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1); }).on('error', () => process.exit(1));"
+  CMD curl -f http://localhost:3000/api/system/status || exit 1
 
 # Use PM2 for process management
 CMD ["pm2-runtime", "start", "ecosystem.config.js", "--env", "production"]
