@@ -1,0 +1,1068 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Comprehensive PlanetPlant monitoring dashboard with real-time sensor data, watering events, and system analytics",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": 2,
+  "links": [],
+  "liveNow": true,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 100,
+      "panels": [],
+      "title": "🌱 Übersicht - Aktuelle Werte",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-planetplant"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+            },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 30
+              },
+              {
+                "color": "green",
+                "value": 50
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-planetplant"
+          },
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"sensor_data\")\n  |> filter(fn: (r) => r[\"sensor_type\"] == \"moisture\")\n  |> filter(fn: (r) => r[\"plant_id\"] =~ /^${plant_id:regex}$/)\n  |> group(columns: [\"plant_id\"])\n  |> last()",
+          "refId": "A"
+        }
+      ],
+      "title": "💧 Bodenfeuchtigkeit",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-planetplant"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 18
+              },
+              {
+                "color": "yellow",
+                "value": 28
+              },
+              {
+                "color": "red",
+                "value": 35
+              }
+            ]
+          },
+          "unit": "celsius"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-planetplant"
+          },
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"sensor_data\")\n  |> filter(fn: (r) => r[\"sensor_type\"] == \"temperature\")\n  |> filter(fn: (r) => r[\"plant_id\"] =~ /^${plant_id:regex}$/)\n  |> group(columns: [\"plant_id\"])\n  |> last()",
+          "refId": "A"
+        }
+      ],
+      "title": "🌡️ Temperatur",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-planetplant"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 40
+              },
+              {
+                "color": "green",
+                "value": 60
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
+      "id": 3,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-planetplant"
+          },
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"sensor_data\")\n  |> filter(fn: (r) => r[\"sensor_type\"] == \"humidity\")\n  |> filter(fn: (r) => r[\"plant_id\"] =~ /^${plant_id:regex}$/)\n  |> group(columns: [\"plant_id\"])\n  |> last()",
+          "refId": "A"
+        }
+      ],
+      "title": "💨 Luftfeuchtigkeit",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-planetplant"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "vis": false
+            }
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "red",
+                  "index": 0,
+                  "text": "Inactive"
+                },
+                "1": {
+                  "color": "green",
+                  "index": 1,
+                  "text": "Active"
+                }
+              },
+              "type": "value"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "id": 4,
+      "options": {
+        "mergeValues": true,
+        "rowHeight": 0.9,
+        "showValue": "auto",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-planetplant"
+          },
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: ${__range.raw.from:date}, stop: ${__range.raw.to:date})\n  |> filter(fn: (r) => r[\"_measurement\"] == \"watering_events\")\n  |> filter(fn: (r) => r[\"plant_id\"] =~ /^${plant_id:regex}$/)\n  |> filter(fn: (r) => r[\"_field\"] == \"success\")\n  |> map(fn: (r) => ({ r with _value: if r._value then 1 else 0 }))",
+          "refId": "A"
+        }
+      ],
+      "title": "💧 Bewässerungs-Events",
+      "type": "state-timeline"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 7
+      },
+      "id": 101,
+      "panels": [],
+      "title": "📈 Zeitreihen - Sensordaten",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-planetplant"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "#EAB839",
+                "value": 30
+              },
+              {
+                "color": "red",
+                "value": 20
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "min",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-planetplant"
+          },
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: ${__range.raw.from:date}, stop: ${__range.raw.to:date})\n  |> filter(fn: (r) => r[\"_measurement\"] == \"sensor_data\")\n  |> filter(fn: (r) => r[\"sensor_type\"] == \"moisture\")\n  |> filter(fn: (r) => r[\"plant_id\"] =~ /^${plant_id:regex}$/)\n  |> aggregateWindow(every: ${interval}, fn: mean, createEmpty: false)\n  |> group(columns: [\"plant_id\"])",
+          "refId": "A"
+        }
+      ],
+      "title": "💧 Bodenfeuchtigkeit Verlauf",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-planetplant"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "temperature"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "celsius"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "humidity"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "min",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-planetplant"
+          },
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: ${__range.raw.from:date}, stop: ${__range.raw.to:date})\n  |> filter(fn: (r) => r[\"_measurement\"] == \"sensor_data\")\n  |> filter(fn: (r) => r[\"sensor_type\"] == \"temperature\" or r[\"sensor_type\"] == \"humidity\")\n  |> filter(fn: (r) => r[\"plant_id\"] =~ /^${plant_id:regex}$/)\n  |> aggregateWindow(every: ${interval}, fn: mean, createEmpty: false)\n  |> group(columns: [\"sensor_type\", \"plant_id\"])",
+          "refId": "A"
+        }
+      ],
+      "title": "🌡️ Temperatur & Luftfeuchtigkeit",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-planetplant"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "vis": false
+            },
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "id": 7,
+      "options": {
+        "calculate": false,
+        "cellGap": 2,
+        "color": {
+          "exponent": 0.5,
+          "fill": "dark-orange",
+          "mode": "spectrum",
+          "reverse": false,
+          "scale": "exponential",
+          "scheme": "Spectral",
+          "steps": 128
+        },
+        "exemplars": {
+          "color": "rgba(255,0,255,0.7)"
+        },
+        "filterValues": {
+          "le": 1e-9
+        },
+        "legend": {
+          "show": true
+        },
+        "rowsFrame": {
+          "layout": "auto"
+        },
+        "tooltip": {
+          "show": true,
+          "yHistogram": false
+        },
+        "yAxis": {
+          "axisPlacement": "left",
+          "reverse": false
+        }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-planetplant"
+          },
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: ${__range.raw.from:date}, stop: ${__range.raw.to:date})\n  |> filter(fn: (r) => r[\"_measurement\"] == \"sensor_data\")\n  |> filter(fn: (r) => r[\"sensor_type\"] == \"moisture\")\n  |> filter(fn: (r) => r[\"plant_id\"] =~ /^${plant_id:regex}$/)\n  |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)\n  |> group(columns: [\"plant_id\"])\n  |> map(fn: (r) => ({ r with hour: uint(v: date.hour(t: r._time)) }))\n  |> group(columns: [\"hour\", \"plant_id\"])",
+          "refId": "A"
+        }
+      ],
+      "title": "🗓️ Tagesübersicht - Feuchtigkeit nach Stunden",
+      "type": "heatmap"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "id": 102,
+      "panels": [],
+      "title": "📊 Statistiken & Analysen",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-planetplant"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ml"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 25
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "calcs": [
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-planetplant"
+          },
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: ${__range.raw.from:date}, stop: ${__range.raw.to:date})\n  |> filter(fn: (r) => r[\"_measurement\"] == \"watering_events\")\n  |> filter(fn: (r) => r[\"_field\"] == \"volume_ml\")\n  |> filter(fn: (r) => r[\"plant_id\"] =~ /^${plant_id:regex}$/)\n  |> aggregateWindow(every: 1d, fn: sum, createEmpty: false)\n  |> group(columns: [\"plant_id\"])",
+          "refId": "A"
+        }
+      ],
+      "title": "💧 Wasserverbrauch pro Tag",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-planetplant"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "moisture"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 30
+                    },
+                    {
+                      "color": "green",
+                      "value": 50
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "temperature"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "celsius"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "humidity"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 25
+      },
+      "id": 9,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-planetplant"
+          },
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"sensor_data\")\n  |> filter(fn: (r) => r[\"plant_id\"] =~ /^${plant_id:regex}$/)\n  |> group(columns: [\"plant_id\", \"sensor_type\"])\n  |> last()\n  |> pivot(rowKey: [\"plant_id\"], columnKey: [\"sensor_type\"], valueColumn: \"_value\")\n  |> map(fn: (r) => ({ \n      plant_id: r.plant_id,\n      moisture: r.moisture,\n      temperature: r.temperature,\n      humidity: r.humidity,\n      light: r.light,\n      last_update: r._time\n    }))",
+          "refId": "A"
+        }
+      ],
+      "title": "📋 Letzte Sensor-Readings",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-planetplant"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [
+            {
+              "options": {
+                "low_moisture": {
+                  "color": "red",
+                  "index": 0,
+                  "text": "🚨 Niedrige Feuchtigkeit"
+                },
+                "high_temperature": {
+                  "color": "orange",
+                  "index": 1,
+                  "text": "🌡️ Hohe Temperatur"
+                },
+                "low_temperature": {
+                  "color": "blue",
+                  "index": 2,
+                  "text": "❄️ Niedrige Temperatur"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 25
+      },
+      "id": 10,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-planetplant"
+          },
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"sensor_data\")\n  |> filter(fn: (r) => r[\"plant_id\"] =~ /^${plant_id:regex}$/)\n  |> group(columns: [\"plant_id\", \"sensor_type\"])\n  |> last()\n  |> map(fn: (r) => ({ \n      r with \n      alert_type: if r.sensor_type == \"moisture\" and r._value < 20.0 then \"low_moisture\"\n                 else if r.sensor_type == \"temperature\" and r._value > 35.0 then \"high_temperature\"\n                 else if r.sensor_type == \"temperature\" and r._value < 10.0 then \"low_temperature\"\n                 else \"normal\",\n      severity: if r.sensor_type == \"moisture\" and r._value < 20.0 then \"critical\"\n               else if r.sensor_type == \"temperature\" and (r._value > 35.0 or r._value < 10.0) then \"warning\"\n               else \"ok\"\n    }))\n  |> filter(fn: (r) => r.alert_type != \"normal\")",
+          "refId": "A"
+        }
+      ],
+      "title": "🚨 Aktive Alerts",
+      "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 37,
+  "style": "dark",
+  "tags": [
+    "planetplant",
+    "iot",
+    "monitoring"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "influxdb",
+          "uid": "influxdb-planetplant"
+        },
+        "definition": "from(bucket: \"sensor-data\")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"sensor_data\")\n  |> keep(columns: [\"plant_id\"])\n  |> group()\n  |> distinct(column: \"plant_id\")",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Plant",
+        "multi": true,
+        "name": "plant_id",
+        "options": [],
+        "query": "from(bucket: \"sensor-data\")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"sensor_data\")\n  |> keep(columns: [\"plant_id\"])\n  |> group()\n  |> distinct(column: \"plant_id\")",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "auto": true,
+        "auto_count": 30,
+        "auto_min": "10s",
+        "current": {
+          "selected": false,
+          "text": "auto",
+          "value": "$__auto_interval_interval"
+        },
+        "hide": 0,
+        "label": "Interval",
+        "name": "interval",
+        "options": [
+          {
+            "selected": true,
+            "text": "auto",
+            "value": "$__auto_interval_interval"
+          },
+          {
+            "selected": false,
+            "text": "1m",
+            "value": "1m"
+          },
+          {
+            "selected": false,
+            "text": "5m",
+            "value": "5m"
+          },
+          {
+            "selected": false,
+            "text": "10m",
+            "value": "10m"
+          },
+          {
+            "selected": false,
+            "text": "30m",
+            "value": "30m"
+          },
+          {
+            "selected": false,
+            "text": "1h",
+            "value": "1h"
+          }
+        ],
+        "query": "1m,5m,10m,30m,1h",
+        "queryType": "interval",
+        "refresh": 2,
+        "skipUrlSync": false,
+        "type": "interval"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "30m",
+      "1h",
+      "2h",
+      "1d"
+    ],
+    "time_options": [
+      "5m",
+      "15m",
+      "1h",
+      "6h",
+      "12h",
+      "24h",
+      "2d",
+      "7d",
+      "30d"
+    ]
+  },
+  "timezone": "Europe/Berlin",
+  "title": "🌱 PlanetPlant - Plant Monitoring",
+  "uid": "plant-monitoring",
+  "version": 1,
+  "weekStart": "monday"
+}
