@@ -1,5 +1,5 @@
-import { AlertTriangle, Wifi, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { AlertTriangle, Wifi, X } from 'lucide-react';
 import React from 'react';
 
 import { useWebSocket } from '../context/WebSocketContext';

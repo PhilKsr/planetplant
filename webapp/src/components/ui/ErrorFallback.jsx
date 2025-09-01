@@ -1,5 +1,5 @@
-import { AlertTriangle, Bug, RotateCcw } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { AlertTriangle, Bug, RotateCcw } from 'lucide-react';
 import React from 'react';
 
 const ErrorFallback = ({ error, resetErrorBoundary }) => {

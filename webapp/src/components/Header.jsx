@@ -1,16 +1,11 @@
-import {
-  Bell,
-  Settings,
-  Moon,
-  Sun,
-} from 'lucide-react';
+import { Bell, Moon, Settings, Sun } from 'lucide-react';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
 import { usePlants } from '../context/PlantContext';
 import { useTheme } from '../context/ThemeContext';
 import LanguageToggle from './LanguageToggle';
-import { useTranslation } from 'react-i18next';
 
 const Header = () => {
   const { isDark, toggleTheme } = useTheme();
@@ -48,7 +43,8 @@ const Header = () => {
               <div className="flex items-center space-x-2">
                 <div className="h-2 w-2 animate-pulse rounded-full bg-green-500"></div>
                 <span className="text-gray-600 dark:text-gray-400">
-                  {summary.online}/{summary.total} {t('dashboard.plants')} {t('dashboard.online')}
+                  {summary.online}/{summary.total} {t('dashboard.plants')}{' '}
+                  {t('dashboard.online')}
                 </span>
               </div>
 

@@ -1,12 +1,7 @@
-import {
-  BarChart3,
-  Monitor,
-  Home,
-  Settings,
-} from 'lucide-react';
+import { BarChart3, Home, Monitor, Settings } from 'lucide-react';
 import React from 'react';
-import { NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { NavLink } from 'react-router-dom';
 
 const Navigation = () => {
   const { t } = useTranslation();
@@ -83,11 +78,15 @@ const Navigation = () => {
             </h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-500 dark:text-gray-400">{t('dashboard.plants')}</span>
+                <span className="text-gray-500 dark:text-gray-400">
+                  {t('dashboard.plants')}
+                </span>
                 <span className="font-medium">3</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500 dark:text-gray-400">{t('dashboard.online')}</span>
+                <span className="text-gray-500 dark:text-gray-400">
+                  {t('dashboard.online')}
+                </span>
                 <span className="font-medium text-green-600">2</span>
               </div>
               <div className="flex justify-between">

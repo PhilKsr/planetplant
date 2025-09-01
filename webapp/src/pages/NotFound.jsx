@@ -1,6 +1,6 @@
 import { Home } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 
 export default function NotFound() {
   const { t } = useTranslation();
@@ -13,9 +13,7 @@ export default function NotFound() {
           <h2 className="mb-4 text-2xl font-semibold text-gray-700">
             {t('notFound.title')}
           </h2>
-          <p className="mb-8 text-gray-500">
-            {t('notFound.message')}
-          </p>
+          <p className="mb-8 text-gray-500">{t('notFound.message')}</p>
           <Link
             to="/"
             className="inline-flex items-center rounded-md border border-transparent bg-green-600 px-4 py-2 text-base font-medium text-white transition-colors duration-200 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"

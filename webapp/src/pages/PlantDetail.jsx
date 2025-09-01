@@ -1,14 +1,14 @@
+import { useQuery } from '@tanstack/react-query';
+import { motion } from 'framer-motion';
 import {
   ArrowLeft,
-  Flask,
   BarChart3,
   Cloud,
+  Flask,
   Settings,
   Sun,
   Thermometer,
 } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
 import React, { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 

@@ -11,15 +11,15 @@ i18n
   .init({
     resources: {
       en: {
-        translation: en
+        translation: en,
       },
       de: {
-        translation: de
-      }
+        translation: de,
+      },
     },
     fallbackLng: 'en',
     debug: import.meta.env.DEV,
-    
+
     interpolation: {
       escapeValue: false,
     },

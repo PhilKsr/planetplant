@@ -1,12 +1,6 @@
-import {
-  Clock,
-  Cpu,
-  Database,
-  MemoryStick,
-  Wifi,
-} from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
+import { Clock, Cpu, Database, MemoryStick, Wifi } from 'lucide-react';
 import React from 'react';
 
 import ErrorState from '../components/ui/ErrorState';

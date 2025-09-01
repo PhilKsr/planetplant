@@ -1,5 +1,5 @@
-import { AlertTriangle, RotateCcw } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { AlertTriangle, RotateCcw } from 'lucide-react';
 import React from 'react';
 
 const ErrorState = ({

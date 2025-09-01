@@ -1,12 +1,6 @@
-import {
-  Bell,
-  Phone,
-  Info,
-  Server,
-  ShieldCheck,
-} from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
+import { Bell, Info, Phone, Server, ShieldCheck } from 'lucide-react';
 import React, { useState } from 'react';
 
 import ErrorState from '../components/ui/ErrorState';

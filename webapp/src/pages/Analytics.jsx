@@ -2,8 +2,6 @@ import { BarChart3, TrendingUp } from 'lucide-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
-import ErrorState from '../components/ui/ErrorState';
-
 const Analytics = () => {
   const { t } = useTranslation();
   return (
