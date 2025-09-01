@@ -1,11 +1,11 @@
-# Production Docker Compose for Raspberry Pi 5
-# Optimized for ARM64 architecture with 8GB RAM
+# Development Docker Compose for Mac/Local Development
+# Optimized for development with hot-reload and debugging
 
 services:
   # InfluxDB Time Series Database
   influxdb:
     image: influxdb:2.7.7-alpine
-    container_name: planetplant-influxdb
+    container_name: planetplant-influxdb-dev
     restart: unless-stopped
     ports:
       - "8086:8086"
@@ -27,21 +27,13 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:8086/ping"]
       interval: 30s
       timeout: 10s
-      retries: 5
-      start_period: 60s
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-          cpus: '2.0'
-        reservations:
-          memory: 1G
-          cpus: '1.0'
+      retries: 3
+      start_period: 30s
 
   # Mosquitto MQTT Broker
   mosquitto:
     image: eclipse-mosquitto:2.0.18-openssl
-    container_name: planetplant-mosquitto
+    container_name: planetplant-mosquitto-dev
     restart: unless-stopped
     ports:
       - "1883:1883"
@@ -59,19 +51,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
-        reservations:
-          memory: 128M
-          cpus: '0.25'
 
   # Redis Cache and Session Store
   redis:
     image: redis:7.2.5-alpine
-    container_name: planetplant-redis
+    container_name: planetplant-redis-dev
     restart: unless-stopped
     ports:
       - "6379:6379"
@@ -86,47 +70,41 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-          cpus: '1.0'
-        reservations:
-          memory: 256M
-          cpus: '0.5'
 
-  # Backend Node.js Server
+  # Backend Node.js Server (Development with hot-reload)
   backend:
     build:
       context: ./raspberry-pi
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
       args:
         - NODE_VERSION=20-alpine
-    container_name: planetplant-backend
+    container_name: planetplant-backend-dev
     restart: unless-stopped
     ports:
       - "3001:3000"
+      - "9229:9229"  # Node.js debug port
     environment:
-      - NODE_ENV=${NODE_ENV:-production}
-      - PORT=${PORT:-3000}
-      - HOST=${HOST:-0.0.0.0}
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-      - INFLUXDB_URL=${INFLUXDB_URL:-http://influxdb:8086}
-      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+      - NODE_ENV=development
+      - PORT=3000
+      - HOST=0.0.0.0
+      - LOG_LEVEL=debug
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN:-plantplant-super-secret-auth-token}
       - INFLUXDB_ORG=${INFLUXDB_ORG:-planetplant}
       - INFLUXDB_BUCKET=${INFLUXDB_BUCKET:-sensor-data}
-      - MQTT_BROKER_URL=${MQTT_BROKER_URL:-mqtt://mosquitto:1883}
-      - MQTT_CLIENT_ID=${MQTT_CLIENT_ID:-planetplant-server}
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
-      - JWT_SECRET=${JWT_SECRET}
-      - CORS_ORIGINS=${CORS_ORIGINS}
+      - MQTT_BROKER_URL=mqtt://mosquitto:1883
+      - MQTT_CLIENT_ID=planetplant-server-dev
+      - REDIS_URL=redis://redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-plantplant123}
+      - JWT_SECRET=${JWT_SECRET:-development-jwt-secret-key}
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:3001
       - MOISTURE_THRESHOLD=${MOISTURE_THRESHOLD:-30}
       - WATERING_DURATION=${WATERING_DURATION:-5000}
       - MAX_WATERING_PER_DAY=${MAX_WATERING_PER_DAY:-3}
     volumes:
+      - ./raspberry-pi/src:/app/src:ro
+      - ./raspberry-pi/package.json:/app/package.json:ro
       - ./raspberry-pi/logs:/app/logs
-      - /etc/localtime:/etc/localtime:ro
     networks:
       - planetplant-network
     depends_on:
@@ -142,77 +120,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-          cpus: '2.0'
-        reservations:
-          memory: 512M
-          cpus: '1.0'
 
-  # Frontend React PWA
-  frontend:
-    build:
-      context: ./webapp
-      dockerfile: Dockerfile
-    container_name: planetplant-frontend
-    restart: unless-stopped
-    expose:
-      - "80"
-    networks:
-      - planetplant-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
-        reservations:
-          memory: 128M
-          cpus: '0.25'
-
-  # Nginx Reverse Proxy
-  nginx-proxy:
-    build:
-      context: ./nginx
-      dockerfile: Dockerfile
-    container_name: planetplant-nginx
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-    networks:
-      - planetplant-network
-    depends_on:
-      - backend
-      - frontend
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.5'
-        reservations:
-          memory: 64M
-          cpus: '0.25'
-
-  # Optional: Grafana for Advanced Monitoring
+  # Optional: Grafana for Development Monitoring
   grafana:
     image: grafana/grafana-oss:10.2.0
-    container_name: planetplant-grafana
+    container_name: planetplant-grafana-dev
     restart: unless-stopped
     ports:
       - "3001:3000"
@@ -224,7 +136,6 @@ services:
     volumes:
       - grafana-storage:/var/lib/grafana
       - ./config/grafana/provisioning:/etc/grafana/provisioning
-      - /etc/localtime:/etc/localtime:ro
     networks:
       - planetplant-network
     depends_on:
@@ -238,54 +149,22 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-          cpus: '1.0'
-        reservations:
-          memory: 512M
-          cpus: '0.5'
 
 volumes:
   influxdb-storage:
     driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /opt/planetplant/influxdb-data
   influxdb-config:
     driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /opt/planetplant/influxdb-config
   mosquitto-config:
     driver: local
   mosquitto-data:
     driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /opt/planetplant/mosquitto-data
   mosquitto-logs:
     driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /opt/planetplant/mosquitto-logs
   grafana-storage:
     driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /opt/planetplant/grafana-data
   redis-data:
     driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /opt/planetplant/redis-data
 
 networks:
   planetplant-network:
