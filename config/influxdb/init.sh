@@ -3,10 +3,10 @@ set -e
 
 echo "🔧 Initializing InfluxDB for PlanetPlant..."
 
-# Wait for InfluxDB to be ready
-until curl -f http://localhost:8086/ping; do
+# Wait for InfluxDB to be ready (checking both ports)
+until curl -f http://localhost:8086/ping 2>/dev/null || curl -f http://localhost:9999/ready 2>/dev/null; do
   echo "⏳ Waiting for InfluxDB to be ready..."
-  sleep 2
+  sleep 5
 done
 
 echo "✅ InfluxDB is ready!"
