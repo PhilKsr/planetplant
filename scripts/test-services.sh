@@ -138,7 +138,7 @@ test_api_endpoints() {
     
     local base_url="http://localhost:3001/api"
     
-    # Test system status
+    # Test system status (backend mapped to port 3001)
     test_http_endpoint "System Status" "${base_url}/system/status"
     
     # Test plants endpoint
@@ -147,7 +147,7 @@ test_api_endpoints() {
     # Test system stats
     test_http_endpoint "System Stats" "${base_url}/system/stats"
     
-    # Test health endpoint
+    # Test health endpoint (backend health check)
     test_http_endpoint "Health Check" "http://localhost:3001/health"
 }
 
@@ -246,10 +246,10 @@ test_docker_services() {
 test_service_communication() {
     echo -e "\n${BLUE}🔗 Service Communication Tests${NC}"
     
-    # Test Backend → InfluxDB
+    # Test Backend → InfluxDB (backend runs on port 3001 externally)
     test_http_endpoint "Backend → InfluxDB" "http://localhost:3001/api/system/stats"
     
-    # Test Frontend → Backend via nginx
+    # Test Frontend → Backend via nginx (nginx proxies to backend)
     test_http_endpoint "Frontend → Backend" "http://localhost/api/system/status"
     
     # Test WebSocket connection (if possible)
@@ -268,7 +268,7 @@ test_service_communication() {
 test_grafana() {
     echo -e "\n${BLUE}📊 Grafana Tests${NC}"
     
-    # Test Grafana availability
+    # Test Grafana availability (external port 3001 → internal 3000)
     test_http_endpoint "Grafana Login Page" "http://localhost:3001/login"
     
     # Test Grafana API (requires authentication)
