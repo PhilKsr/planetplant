@@ -18,9 +18,8 @@ services:
       - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_TOKEN:-plantplant-super-secret-auth-token}
       - DOCKER_INFLUXDB_INIT_RETENTION=${INFLUXDB_RETENTION:-90d}
     volumes:
-      - influxdb-storage:/var/lib/influxdb2
-      - influxdb-config:/etc/influxdb2
-      - ./config/influxdb:/docker-entrypoint-initdb.d
+      - ./data/influxdb:/var/lib/influxdb2
+      - ./config/influxdb:/etc/influxdb2
     networks:
       - planetplant-network
     healthcheck:
@@ -47,10 +46,9 @@ services:
       - "1883:1883"
       - "9001:9001"
     volumes:
-      - mosquitto-config:/mosquitto/config
-      - mosquitto-data:/mosquitto/data
-      - mosquitto-logs:/mosquitto/log
-      - ./config/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./config/mosquitto:/mosquitto/config
+      - ./data/mosquitto:/mosquitto/data
+      - ./logs/mosquitto:/mosquitto/log
     networks:
       - planetplant-network
     healthcheck:
@@ -77,7 +75,7 @@ services:
       - "6379:6379"
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-plantplant123}
     volumes:
-      - redis-data:/data
+      - ./data/redis:/data
     networks:
       - planetplant-network
     healthcheck:
@@ -127,7 +125,7 @@ services:
       - WATERING_DURATION=${WATERING_DURATION:-5000}
       - MAX_WATERING_PER_DAY=${MAX_WATERING_PER_DAY:-3}
     volumes:
-      - ./raspberry-pi/logs:/app/logs
+      - ./logs/backend:/app/logs
       - /etc/localtime:/etc/localtime:ro
     networks:
       - planetplant-network
@@ -224,7 +222,7 @@ services:
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
     volumes:
-      - grafana-storage:/var/lib/grafana
+      - ./data/grafana:/var/lib/grafana
       - ./config/grafana/provisioning:/etc/grafana/provisioning
       - /etc/localtime:/etc/localtime:ro
     networks:
@@ -249,45 +247,7 @@ services:
           memory: 512M
           cpus: '0.5'
 
-volumes:
-  influxdb-storage:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /opt/planetplant/influxdb-data
-  influxdb-config:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /opt/planetplant/influxdb-config
-  mosquitto-config:
-    driver: local
-  mosquitto-data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /opt/planetplant/mosquitto-data
-  mosquitto-logs:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /opt/planetplant/mosquitto-logs
-  grafana-storage:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /opt/planetplant/grafana-data
-  redis-data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /opt/planetplant/redis-data
+# Volumes now use relative paths - no named volumes needed
 
 networks:
   planetplant-network:

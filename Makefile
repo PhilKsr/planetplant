@@ -11,9 +11,14 @@ DOCKER_COMPOSE := $(shell command -v docker-compose 2>/dev/null || echo "docker 
 # QUICK COMMANDS (Primary Interface)
 # =============================================================================
 
-up: ## Start all services (production)
+init: ## Initialize directories and config files
+	@echo "🔧 Initializing PlanetPlant..."
+	@chmod +x scripts/init-volumes.sh
+	@./scripts/init-volumes.sh
+	@echo "✅ Initialization complete"
+
+up: init ## Start all services (production)
 	@echo "🚀 Starting PlanetPlant..."
-	@$(MAKE) setup-dirs
 	$(DOCKER_COMPOSE) up -d
 	@echo "⏳ Waiting 30 seconds for services to start..."
 	@sleep 30
@@ -38,6 +43,7 @@ clean: ## Clean up Docker resources and volumes
 	docker volume prune -f
 	docker image prune -f
 	docker builder prune -f
+	rm -rf data logs
 	@echo "✅ Cleanup completed!"
 
 # =============================================================================
@@ -52,9 +58,8 @@ dev: ## Start development environment (Mac/Local)
 	@echo "🌐 Frontend: Start with 'make frontend-dev'"
 	@echo "📈 Grafana: http://localhost:3001 (admin/plantplant123)"
 
-prod: ## Start production environment (Raspberry Pi 5)
+prod: init ## Start production environment (Raspberry Pi 5)
 	@echo "🍓 Starting PlanetPlant production environment..."
-	@$(MAKE) setup-dirs
 	$(DOCKER_COMPOSE) up --build -d
 	@echo "✅ Production environment started!"
 	@echo "🌐 Frontend: http://localhost"
@@ -68,9 +73,8 @@ dev-down: ## Stop development environment
 # MONITORING & MAINTENANCE
 # =============================================================================
 
-monitoring: ## Start with Grafana monitoring enabled
+monitoring: init ## Start with Grafana monitoring enabled
 	@echo "📊 Starting with monitoring..."
-	@$(MAKE) setup-dirs
 	$(DOCKER_COMPOSE) --profile monitoring up --build -d
 
 backup: ## Create system backup
@@ -109,9 +113,7 @@ setup-pi: ## Initial Raspberry Pi 5 setup
 	chmod +x scripts/setup-pi.sh
 	sudo ./scripts/setup-pi.sh
 
-setup-dirs: ## Create required directories
-	@sudo mkdir -p /opt/planetplant/{influxdb-data,influxdb-config,mosquitto-data,mosquitto-logs,grafana-data,redis-data,backups}
-	@sudo chown -R $$USER:$$USER /opt/planetplant
+# setup-dirs removed - now using relative paths with init target
 
 install: ## Install all dependencies
 	@echo "📦 Installing dependencies..."
