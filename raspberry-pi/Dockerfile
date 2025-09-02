@@ -46,4 +46,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD curl -f http://localhost:3000/api/system/status || exit 1
 
 # Use PM2 for process management
-CMD ["pm2-runtime", "start", "ecosystem.config.js", "--env", "production"]
+CMD ["pm2-runtime", "start", "ecosystem.config.mjs", "--env", "production"]
