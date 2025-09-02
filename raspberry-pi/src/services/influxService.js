@@ -67,7 +67,8 @@ class InfluxService {
       const queryApi = this.client.getQueryApi(this.config.org);
       await queryApi.queryRows('buckets()', {
         next() {},
-        error(error) { throw error; }
+        error(error) { throw error; },
+        complete() {}
       });
       logger.info('🏓 InfluxDB connection test successful');
     } catch (error) {
@@ -210,7 +211,8 @@ class InfluxService {
         error(error) {
           logger.error('❌ Query error:', error);
           throw error;
-        }
+        },
+        complete() {}
       });
 
       return result;
@@ -221,7 +223,7 @@ class InfluxService {
   }
 
   async getHistoricalData(plantId, range = '24h', interval = '5m') {
-    const fluxQuery = flux`
+    const fluxQuery = `
       from(bucket: "${this.config.bucket}")
         |> range(start: -${range})
         |> filter(fn: (r) => r["_measurement"] == "sensor_data")
@@ -247,7 +249,8 @@ class InfluxService {
         error(error) {
           logger.error('❌ Historical query error:', error);
           throw error;
-        }
+        },
+        complete() {}
       });
 
       return result;
@@ -286,7 +289,8 @@ class InfluxService {
         error(error) {
           logger.error('❌ Watering history query error:', error);
           throw error;
-        }
+        },
+        complete() {}
       });
 
       return result;
@@ -327,7 +331,8 @@ class InfluxService {
         error(error) {
           logger.error('❌ Anomaly detection query error:', error);
           throw error;
-        }
+        },
+        complete() {}
       });
 
       return anomalies;
@@ -365,7 +370,8 @@ class InfluxService {
         error(error) {
           logger.error('❌ Daily aggregates query error:', error);
           throw error;
-        }
+        },
+        complete() {}
       });
 
       return aggregates;
@@ -468,7 +474,8 @@ class InfluxService {
         error(error) {
           logger.error('❌ Alerts query error:', error);
           throw error;
-        }
+        },
+        complete() {}
       });
 
       return alerts;
