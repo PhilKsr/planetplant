@@ -8,7 +8,7 @@ services:
     container_name: planetplant-influxdb
     restart: unless-stopped
     ports:
-      - "8086:8086"
+      - '8086:8086'
     environment:
       # ONE-TIME SETUP (COMPLETED - commented out to prevent restart conflicts)
       # - DOCKER_INFLUXDB_INIT_MODE=setup
@@ -28,7 +28,7 @@ services:
     networks:
       - planetplant-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8086/ping"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:8086/ping']
       interval: 30s
       timeout: 10s
       retries: 5
@@ -48,8 +48,8 @@ services:
     container_name: planetplant-mosquitto
     restart: unless-stopped
     ports:
-      - "1883:1883"
-      - "9001:9001"
+      - '1883:1883'
+      - '9001:9001'
     volumes:
       - ./config/mosquitto:/mosquitto/config
       - ./data/mosquitto:/mosquitto/data
@@ -57,7 +57,7 @@ services:
     networks:
       - planetplant-network
     healthcheck:
-      test: ["CMD-SHELL", "mosquitto_pub -h localhost -t test -m 'health check' || exit 1"]
+      test: ['CMD-SHELL', "mosquitto_pub -h localhost -t test -m 'health check' || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -77,14 +77,14 @@ services:
     container_name: planetplant-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - '6379:6379'
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-plantplant123}
     volumes:
       - ./data/redis:/data
     networks:
       - planetplant-network
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      test: ['CMD', 'redis-cli', '--raw', 'incr', 'ping']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -108,12 +108,14 @@ services:
     container_name: planetplant-backend
     restart: unless-stopped
     ports:
-      - "3001:3000"
+      - '3001:3000'
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - PORT=${PORT:-3000}
       - HOST=${HOST:-0.0.0.0}
       - LOG_LEVEL=${LOG_LEVEL:-info}
+      - BACKEND_FILE_LOGGING=false
+      - BACKEND_CONSOLE_LOGGING=true
       - INFLUXDB_URL=http://influxdb:8086
       - INFLUXDB_TOKEN=${INFLUXDB_TOKEN:-plantplant-super-secret-auth-token}
       - INFLUXDB_ORG=${INFLUXDB_ORG:-planetplant}
@@ -132,7 +134,6 @@ services:
       - WATERING_DURATION=${WATERING_DURATION:-5000}
       - MAX_WATERING_PER_DAY=${MAX_WATERING_PER_DAY:-3}
     volumes:
-      - ./logs/backend:/app/logs
       - /etc/localtime:/etc/localtime:ro
     networks:
       - planetplant-network
@@ -144,7 +145,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/system/status"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/api/system/status']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -166,11 +167,11 @@ services:
     container_name: planetplant-frontend
     restart: unless-stopped
     expose:
-      - "80"
+      - '80'
     networks:
       - planetplant-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      test: ['CMD', 'curl', '-f', 'http://localhost/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -192,8 +193,8 @@ services:
     container_name: planetplant-nginx
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
+      - '80:80'
+      - '443:443'
     volumes:
       - /etc/localtime:/etc/localtime:ro
     networks:
@@ -202,7 +203,7 @@ services:
       - backend
       - frontend
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      test: ['CMD', 'curl', '-f', 'http://localhost/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -222,7 +223,7 @@ services:
     container_name: planetplant-grafana
     restart: unless-stopped
     ports:
-      - "3001:3000"
+      - '3001:3000'
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-plantplant123}
@@ -240,7 +241,7 @@ services:
     profiles:
       - monitoring
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      test: ['CMD-SHELL', 'curl -f http://localhost:3000/api/health || exit 1']
       interval: 30s
       timeout: 10s
       retries: 3
