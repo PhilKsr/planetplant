@@ -4,22 +4,27 @@
 services:
   # InfluxDB Time Series Database
   influxdb:
-    image: influxdb:2.7.7-alpine
+    image: influxdb:2.7-alpine
     container_name: planetplant-influxdb
     restart: unless-stopped
     ports:
       - "8086:8086"
     environment:
-      - DOCKER_INFLUXDB_INIT_MODE=setup
-      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUXDB_USERNAME:-admin}
-      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_PASSWORD:-plantplant123}
-      - DOCKER_INFLUXDB_INIT_ORG=${INFLUXDB_ORG:-planetplant}
-      - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_BUCKET:-sensor-data}
-      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_TOKEN:-plantplant-super-secret-auth-token}
-      - DOCKER_INFLUXDB_INIT_RETENTION=${INFLUXDB_RETENTION:-90d}
+      # ONE-TIME SETUP (COMPLETED - commented out to prevent restart conflicts)
+      # - DOCKER_INFLUXDB_INIT_MODE=setup
+      # - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUXDB_USERNAME:-admin}
+      # - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_PASSWORD:-plantplant123}
+      # - DOCKER_INFLUXDB_INIT_ORG=${INFLUXDB_ORG:-planetplant}
+      # - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_BUCKET:-sensor-data}
+      # - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_TOKEN:-plantplant-super-secret-auth-token}
+      # - DOCKER_INFLUXDB_INIT_RETENTION=${INFLUXDB_RETENTION:-90d}
+      # Persistent variables for init.sh (safe for restarts)
+      - INFLUX_INIT_ORG=${INFLUXDB_ORG:-planetplant}
+      - INFLUX_INIT_BUCKET=${INFLUXDB_BUCKET:-sensor-data}
+      - INFLUX_INIT_RETENTION=${INFLUXDB_RETENTION:-90d}
+      - INFLUX_INIT_ADMIN_TOKEN=${INFLUXDB_TOKEN:-plantplant-super-secret-auth-token}
     volumes:
       - ./data/influxdb:/var/lib/influxdb2
-      - ./config/influxdb:/etc/influxdb2
     networks:
       - planetplant-network
     healthcheck:
@@ -109,18 +114,20 @@ services:
       - PORT=${PORT:-3000}
       - HOST=${HOST:-0.0.0.0}
       - LOG_LEVEL=${LOG_LEVEL:-info}
-      - INFLUXDB_URL=${INFLUXDB_URL:-http://influxdb:8086}
-      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN:-plantplant-super-secret-auth-token}
       - INFLUXDB_ORG=${INFLUXDB_ORG:-planetplant}
       - INFLUXDB_BUCKET=${INFLUXDB_BUCKET:-sensor-data}
       - MQTT_HOST=${MQTT_HOST:-mosquitto}
       - MQTT_PORT=${MQTT_PORT:-1883}
       - MQTT_CLIENT_ID=${MQTT_CLIENT_ID:-planetplant-server}
+      - MQTT_USERNAME=${MQTT_USERNAME:-}
+      - MQTT_PASSWORD=${MQTT_PASSWORD:-}
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
-      - JWT_SECRET=${JWT_SECRET}
-      - CORS_ORIGINS=${CORS_ORIGINS}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-plantplant123}
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-this-in-production}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost,http://localhost:3001,http://localhost:5173}
       - MOISTURE_THRESHOLD=${MOISTURE_THRESHOLD:-30}
       - WATERING_DURATION=${WATERING_DURATION:-5000}
       - MAX_WATERING_PER_DAY=${MAX_WATERING_PER_DAY:-3}
@@ -163,7 +170,7 @@ services:
     networks:
       - planetplant-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/"]
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
       interval: 30s
       timeout: 10s
       retries: 3

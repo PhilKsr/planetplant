@@ -19,8 +19,6 @@ services:
       - DOCKER_INFLUXDB_INIT_RETENTION=${INFLUXDB_RETENTION:-90d}
     volumes:
       - influxdb-storage:/var/lib/influxdb2
-      - influxdb-config:/etc/influxdb2
-      - ./config/influxdb:/docker-entrypoint-initdb.d
     networks:
       - planetplant-network
     healthcheck:

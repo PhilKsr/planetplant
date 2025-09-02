@@ -2,8 +2,8 @@
 ARG NODE_VERSION=20-alpine
 FROM node:${NODE_VERSION}
 
-# Install development tools
-RUN apk add --no-cache python3 make g++ curl
+# Install development tools and jq for InfluxDB init
+RUN apk add --no-cache python3 make g++ curl jq
 
 WORKDIR /app
 
@@ -12,6 +12,9 @@ COPY package*.json ./
 
 # Install all dependencies (including dev)
 RUN npm ci
+
+# Copy source code for development
+COPY . .
 
 # Create required directories
 RUN mkdir -p data logs

@@ -2,7 +2,7 @@
 ARG NODE_VERSION=20-alpine
 FROM node:${NODE_VERSION} AS base
 WORKDIR /app
-RUN apk add --no-cache python3 make g++ curl
+RUN apk add --no-cache python3 make g++ curl jq
 
 # Dependencies stage
 FROM base AS dependencies
