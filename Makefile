@@ -4,6 +4,9 @@
 .DEFAULT_GOAL := help
 .PHONY: help up down logs test clean dev prod install status
 
+# Detect Docker Compose command (docker-compose vs docker compose)
+DOCKER_COMPOSE := $(shell command -v docker-compose 2>/dev/null || echo "docker compose")
+
 # =============================================================================
 # QUICK COMMANDS (Primary Interface)
 # =============================================================================
@@ -11,18 +14,18 @@
 up: ## Start all services (production)
 	@echo "🚀 Starting PlanetPlant..."
 	@$(MAKE) setup-dirs
-	docker-compose up -d
+	$(DOCKER_COMPOSE) up -d
 	@echo "⏳ Waiting 30 seconds for services to start..."
 	@sleep 30
 	@$(MAKE) test
 
 down: ## Stop all services
 	@echo "🛑 Stopping PlanetPlant..."
-	docker-compose down
+	$(DOCKER_COMPOSE) down
 	@echo "✅ All services stopped!"
 
 logs: ## Show logs from all services
-	docker-compose logs -f --tail=50
+	$(DOCKER_COMPOSE) logs -f --tail=50
 
 test: ## Run comprehensive service tests
 	@echo "🧪 Running service tests..."
@@ -30,7 +33,7 @@ test: ## Run comprehensive service tests
 
 clean: ## Clean up Docker resources and volumes
 	@echo "🧹 Cleaning up Docker resources..."
-	docker-compose down -v
+	$(DOCKER_COMPOSE) down -v
 	docker system prune -f
 	docker volume prune -f
 	@echo "✅ Cleanup completed!"
@@ -41,7 +44,7 @@ clean: ## Clean up Docker resources and volumes
 
 dev: ## Start development environment (Mac/Local)
 	@echo "🚀 Starting PlanetPlant development environment..."
-	docker-compose -f docker-compose.dev.yml up --build -d
+	$(DOCKER_COMPOSE) -f docker-compose.dev.yml up --build -d
 	@echo "✅ Development environment started!"
 	@echo "📊 Backend: http://localhost:3001"
 	@echo "🌐 Frontend: Start with 'make frontend-dev'"
@@ -50,14 +53,14 @@ dev: ## Start development environment (Mac/Local)
 prod: ## Start production environment (Raspberry Pi 5)
 	@echo "🍓 Starting PlanetPlant production environment..."
 	@$(MAKE) setup-dirs
-	docker-compose up --build -d
+	$(DOCKER_COMPOSE) up --build -d
 	@echo "✅ Production environment started!"
 	@echo "🌐 Frontend: http://localhost"
 	@echo "📊 Backend API: http://localhost/api"
 	@echo "📈 Grafana: http://localhost:3001"
 
 dev-down: ## Stop development environment
-	docker-compose -f docker-compose.dev.yml down
+	$(DOCKER_COMPOSE) -f docker-compose.dev.yml down
 
 # =============================================================================
 # MONITORING & MAINTENANCE
@@ -66,7 +69,7 @@ dev-down: ## Stop development environment
 monitoring: ## Start with Grafana monitoring enabled
 	@echo "📊 Starting with monitoring..."
 	@$(MAKE) setup-dirs
-	docker-compose --profile monitoring up --build -d
+	$(DOCKER_COMPOSE) --profile monitoring up --build -d
 
 backup: ## Create system backup
 	@echo "📦 Creating backup..."
@@ -84,15 +87,15 @@ restore: ## Restore from backup (usage: make restore file=backup.tar.gz)
 
 update: ## Update and rebuild all containers
 	@echo "🔄 Updating containers..."
-	docker-compose pull
-	docker-compose up --build -d
+	$(DOCKER_COMPOSE) pull
+	$(DOCKER_COMPOSE) up --build -d
 	@echo "✅ Update completed!"
 
 rebuild: ## Force rebuild all containers
 	@echo "🔄 Force rebuilding..."
-	docker-compose down
-	docker-compose build --no-cache
-	docker-compose up -d
+	$(DOCKER_COMPOSE) down
+	$(DOCKER_COMPOSE) build --no-cache
+	$(DOCKER_COMPOSE) up -d
 	@echo "✅ Rebuild completed!"
 
 # =============================================================================
@@ -156,10 +159,10 @@ status: ## Show detailed status of all services
 	@echo "============================"
 	@echo ""
 	@echo "🐳 Docker Services:"
-	@docker-compose ps 2>/dev/null || echo "❌ Production not running"
+	@$(DOCKER_COMPOSE) ps 2>/dev/null || echo "❌ Production not running"
 	@echo ""
 	@echo "💻 Development Services:"
-	@docker-compose -f docker-compose.dev.yml ps 2>/dev/null || echo "❌ Development not running"
+	@$(DOCKER_COMPOSE) -f docker-compose.dev.yml ps 2>/dev/null || echo "❌ Development not running"
 	@echo ""
 	@echo "💾 System Resources:"
 	@echo "   Memory: $$(free -h | grep Mem | awk '{print $$3 "/" $$2}')"
@@ -175,19 +178,19 @@ health: ## Quick health check
 	@curl -s http://localhost:3001/api/health > /dev/null && echo " ✅ Grafana OK" || echo " ❌ Grafana DOWN"
 
 shell: ## Open shell in backend container
-	docker-compose exec backend sh
+	$(DOCKER_COMPOSE) exec backend sh
 
 logs-follow: ## Follow logs from all services with timestamps
-	docker-compose logs -f -t
+	$(DOCKER_COMPOSE) logs -f -t
 
 logs-backend: ## Show backend logs
-	docker-compose logs -f backend
+	$(DOCKER_COMPOSE) logs -f backend
 
 logs-frontend: ## Show frontend logs
-	docker-compose logs -f frontend
+	$(DOCKER_COMPOSE) logs -f frontend
 
 logs-influxdb: ## Show InfluxDB logs
-	docker-compose logs -f influxdb
+	$(DOCKER_COMPOSE) logs -f influxdb
 
 # =============================================================================
 # SECURITY & MAINTENANCE
@@ -240,7 +243,7 @@ info: ## Show system and project information
 	@echo "📍 Project Directory: $(PWD)"
 	@echo "🐳 Docker Version: $$(docker --version 2>/dev/null || echo 'Not installed')"
 	@echo "📦 Node.js Version: $$(node --version 2>/dev/null || echo 'Not installed')"
-	@echo "🔧 Docker Compose Version: $$(docker-compose --version 2>/dev/null || echo 'Not installed')"
+	@echo "🔧 Docker Compose Version: $$($(DOCKER_COMPOSE) --version 2>/dev/null || echo 'Not installed')"
 	@echo "🏗️  Architecture: $$(uname -m)"
 	@echo "💻 OS: $$(uname -s) $$(uname -r)"
 	@echo ""
