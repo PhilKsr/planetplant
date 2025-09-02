@@ -95,30 +95,58 @@ setupWebSocket(io);
 const startServer = async () => {
   try {
     logger.info('🌱 Starting PlanetPlant Server...');
+    logger.info(`📍 Environment: ${process.env.NODE_ENV}`);
+    logger.info(`🔧 Port: ${PORT}, Host: ${HOST}`);
     
-    logger.info('📊 Connecting to InfluxDB...');
-    await influxService.initialize();
-    
-    logger.info('📡 Connecting to MQTT Broker...');
-    await mqttClient.initialize();
-    
-    logger.info('🔄 Initializing Plant Service...');
-    await plantService.initialize();
-    
-    logger.info('🤖 Starting Automation Service...');
-    automationService.start();
-    
-    logger.info('💊 Starting Health Monitoring...');
-    healthService.start();
-    
+    // Start HTTP server first to accept health checks
     server.listen(PORT, HOST, () => {
       logger.info(`🚀 Server running on http://${HOST}:${PORT}`);
-      logger.info(`📡 WebSocket server ready for real-time updates`);
-      logger.info(`🌱 PlanetPlant is ready to grow!`);
     });
+    
+    // Initialize services with retry logic
+    const initWithRetry = async (name, initFn, maxRetries = 3) => {
+      for (let i = 0; i < maxRetries; i++) {
+        try {
+          logger.info(`📊 ${name} - Attempt ${i + 1}/${maxRetries}`);
+          await initFn();
+          logger.info(`✅ ${name} initialized successfully`);
+          return;
+        } catch (error) {
+          logger.warn(`⚠️ ${name} failed (${i + 1}/${maxRetries}):`, error.message);
+          if (i === maxRetries - 1) throw error;
+          await new Promise(resolve => setTimeout(resolve, 2000 * (i + 1))); // Exponential backoff
+        }
+      }
+    };
+    
+    // Initialize services with retry logic
+    await initWithRetry('InfluxDB Connection', () => influxService.initialize());
+    await initWithRetry('MQTT Broker Connection', () => mqttClient.initialize());
+    await initWithRetry('Plant Service', () => plantService.initialize());
+    
+    // Start optional services (don't fail startup if these fail)
+    try {
+      logger.info('🤖 Starting Automation Service...');
+      automationService.start();
+      logger.info('✅ Automation Service started');
+    } catch (error) {
+      logger.warn('⚠️ Automation Service failed to start:', error.message);
+    }
+    
+    try {
+      logger.info('💊 Starting Health Monitoring...');
+      healthService.start();
+      logger.info('✅ Health Monitoring started');
+    } catch (error) {
+      logger.warn('⚠️ Health Monitoring failed to start:', error.message);
+    }
+    
+    logger.info(`📡 WebSocket server ready for real-time updates`);
+    logger.info(`🌱 PlanetPlant is ready to grow!`);
     
   } catch (error) {
     logger.error('❌ Failed to start server:', error);
+    logger.error('🔄 Server will restart automatically...');
     process.exit(1);
   }
 };

@@ -24,8 +24,7 @@ RUN npm run test || true
 FROM base AS production
 RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
 
-# Install PM2 globally for ARM64
-RUN npm install -g pm2@5.4.2 --unsafe-perm
+# PM2 not needed - using Node.js directly for better compatibility
 
 # Copy dependencies
 COPY --from=dependencies /app/node_modules ./node_modules
@@ -45,5 +44,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD curl -f http://localhost:3000/api/system/status || exit 1
 
-# Use PM2 for process management with fallback
-CMD ["sh", "-c", "pm2-runtime start ecosystem.config.mjs --env production || node src/app.js"]
+# Start with Node.js directly for stability
+CMD ["node", "src/app.js"]
