@@ -36,6 +36,8 @@ clean: ## Clean up Docker resources and volumes
 	$(DOCKER_COMPOSE) down -v
 	docker system prune -f
 	docker volume prune -f
+	docker image prune -f
+	docker builder prune -f
 	@echo "✅ Cleanup completed!"
 
 # =============================================================================

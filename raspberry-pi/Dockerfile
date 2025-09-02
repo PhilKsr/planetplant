@@ -45,5 +45,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD curl -f http://localhost:3000/api/system/status || exit 1
 
-# Use PM2 for process management
-CMD ["pm2-runtime", "start", "ecosystem.config.mjs", "--env", "production"]
+# Use PM2 for process management with fallback
+CMD ["sh", "-c", "pm2-runtime start ecosystem.config.mjs --env production || node src/app.js"]

@@ -2,7 +2,7 @@ export default {
   apps: [{
     name: 'planetplant-server',
     script: 'src/app.js',
-    cwd: '/home/pi/PlanetPlant/raspberry-pi',
+    cwd: '/app',
     
     // Instance configuration
     instances: 1,
@@ -29,9 +29,9 @@ export default {
     },
     
     // Logging configuration
-    log_file: '/home/pi/PlanetPlant/raspberry-pi/logs/pm2-combined.log',
-    out_file: '/home/pi/PlanetPlant/raspberry-pi/logs/pm2-out.log',
-    error_file: '/home/pi/PlanetPlant/raspberry-pi/logs/pm2-error.log',
+    log_file: '/app/logs/pm2-combined.log',
+    out_file: '/app/logs/pm2-out.log',
+    error_file: '/app/logs/pm2-error.log',
     log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
     
     // Process management
@@ -77,7 +77,7 @@ export default {
   {
     name: 'planetplant-automation',
     script: 'src/workers/automationWorker.js',
-    cwd: '/home/pi/PlanetPlant/raspberry-pi',
+    cwd: '/app',
     
     instances: 1,
     exec_mode: 'fork',
@@ -97,9 +97,9 @@ export default {
       LOG_LEVEL: 'warn'
     },
     
-    log_file: '/home/pi/PlanetPlant/raspberry-pi/logs/automation-combined.log',
-    out_file: '/home/pi/PlanetPlant/raspberry-pi/logs/automation-out.log',
-    error_file: '/home/pi/PlanetPlant/raspberry-pi/logs/automation-error.log',
+    log_file: '/app/logs/automation-combined.log',
+    out_file: '/app/logs/automation-out.log',
+    error_file: '/app/logs/automation-error.log',
     
     min_uptime: '10s',
     max_restarts: 5,
