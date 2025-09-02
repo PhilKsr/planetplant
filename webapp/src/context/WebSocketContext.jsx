@@ -27,7 +27,7 @@ export const WebSocketProvider = ({ children }) => {
   const maxReconnectAttempts = 5;
 
   useEffect(() => {
-    const serverUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+    const serverUrl = import.meta.env.VITE_WS_URL || import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3001';
 
     const socketInstance = io(serverUrl, {
       transports: ['websocket'],

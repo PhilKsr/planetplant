@@ -165,14 +165,15 @@ services:
       - "5173:5173"
     environment:
       - NODE_ENV=development
+      - VITE_API_URL=http://localhost:8080/api
+      - VITE_WS_URL=http://localhost:8080
     volumes:
-      - ./webapp/src:/app/src:ro
-      - ./webapp/public:/app/public:ro
-      - ./webapp/package.json:/app/package.json:ro
+      - ./webapp:/app
+      - /app/node_modules
     networks:
       - planetplant-network
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:5173/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:5173/ || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
