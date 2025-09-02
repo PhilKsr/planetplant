@@ -219,6 +219,7 @@ docker-compose ps         # Container-Status
 | ❌ InfluxDB startet nicht | Falsche Permissions | `sudo chown -R $USER /opt/planetplant` |
 | ❌ MQTT Verbindung fehlschlägt | Firewall blockiert | `sudo ufw allow 1883` |
 | ❌ Frontend nicht erreichbar | Nginx-Config Fehler | `make logs-frontend` |
+| ❌ Frontend Build-Fehler | Lucide-React Import | Icons in PlantDetail.jsx prüfen |
 | ❌ Hohe RAM-Nutzung | Resource Limits | `docker stats` → Limits anpassen |
 | ❌ ESP32 verbindet nicht | WiFi-Probleme | Reset-Button halten beim Start |
 
@@ -272,64 +273,6 @@ make backup
 
 # Backup wiederherstellen
 make restore file=/opt/planetplant/backups/planetplant_backup_20240101_120000.tar.gz
-```
-
-## 📝 API Dokumentierung
-
-### Plant Management
-```bash
-GET    /api/plants                    # Alle Pflanzen
-GET    /api/plants/:id                # Spezifische Pflanze
-GET    /api/plants/:id/current        # Aktuelle Sensor-Daten
-GET    /api/plants/:id/history        # Historische Daten
-POST   /api/plants/:id/water          # Manuelle Bewässerung
-PUT    /api/plants/:id/config         # Pflanze konfigurieren
-```
-
-### System & Monitoring
-```bash
-GET    /api/system/status             # System-Status
-GET    /api/system/stats              # Performance-Metriken
-GET    /api/alerts/active             # Aktive Alerts
-```
-
-### Beispiel API-Aufruf
-```bash
-# Aktuelle Sensor-Daten abrufen
-curl -X GET "http://localhost/api/plants/esp32_abc123/current" \
-     -H "Content-Type: application/json"
-
-# Manuelle Bewässerung
-curl -X POST "http://localhost/api/plants/esp32_abc123/water" \
-     -H "Content-Type: application/json" \
-     -d '{"duration": 5000, "reason": "manual"}'
-```
-
-## 🔄 Wartung & Updates
-
-### System Updates
-```bash
-# PlanetPlant updaten
-git pull origin main
-make update
-
-# System-Pakete updaten (Raspberry Pi)
-sudo apt update && sudo apt upgrade -y
-
-# Dependencies updaten
-make update-deps
-```
-
-### Backup & Restore
-```bash
-# Backup erstellen
-make backup
-
-# Verfügbare Backups anzeigen
-ls -lah /opt/planetplant/backups/
-
-# System wiederherstellen
-make restore file=backup_file.tar.gz
 ```
 
 ## 🤝 Contributing

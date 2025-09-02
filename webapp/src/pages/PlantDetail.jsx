@@ -4,7 +4,7 @@ import {
   ArrowLeft,
   BarChart3,
   Cloud,
-  Flask,
+  Droplets,
   Settings,
   Sun,
   Thermometer,
@@ -64,7 +64,7 @@ const PlantDetail = () => {
   const tabs = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
     { id: 'charts', label: 'Charts', icon: BarChart3 },
-    { id: 'history', label: 'History', icon: Flask },
+    { id: 'history', label: 'History', icon: Droplets },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
@@ -364,7 +364,7 @@ const PlantDetail = () => {
                   {historyData?.data?.sensorData?.moisture && (
                     <div>
                       <h4 className="text-md mb-4 flex items-center space-x-2 font-medium text-gray-900 dark:text-white">
-                        <Flask className="h-5 w-5 text-blue-500" />
+                        <Droplets className="h-5 w-5 text-blue-500" />
                         <span>Soil Moisture</span>
                       </h4>
                       <div className="card p-4">

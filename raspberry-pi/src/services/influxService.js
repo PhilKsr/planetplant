@@ -65,10 +65,12 @@ class InfluxService {
     try {
       // Test connection by trying to get bucket info
       const queryApi = this.client.getQueryApi(this.config.org);
-      await queryApi.queryRows('buckets()', {
-        next() {},
-        error(error) { throw error; },
-        complete() {}
+      await new Promise((resolve, reject) => {
+        queryApi.queryRows('buckets()', {
+          next() {},
+          error(error) { reject(error); },
+          complete() { resolve(); }
+        });
       });
       logger.info('🏓 InfluxDB connection test successful');
     } catch (error) {
@@ -197,22 +199,26 @@ class InfluxService {
 
     try {
       const result = [];
-      await this.queryApi.queryRows(fluxQuery, {
-        next(row, tableMeta) {
-          const o = tableMeta.toObject(row);
-          result.push({
-            sensor_type: o.sensor_type,
-            value: o._value,
-            unit: o.unit,
-            timestamp: o._time,
-            quality: o.quality || 'good'
-          });
-        },
-        error(error) {
-          logger.error('❌ Query error:', error);
-          throw error;
-        },
-        complete() {}
+      await new Promise((resolve, reject) => {
+        this.queryApi.queryRows(fluxQuery, {
+          next(row, tableMeta) {
+            const o = tableMeta.toObject(row);
+            result.push({
+              sensor_type: o.sensor_type,
+              value: o._value,
+              unit: o.unit,
+              timestamp: o._time,
+              quality: o.quality || 'good'
+            });
+          },
+          error(error) {
+            logger.error('❌ Query error:', error);
+            reject(error);
+          },
+          complete() {
+            resolve();
+          }
+        });
       });
 
       return result;
@@ -234,23 +240,27 @@ class InfluxService {
 
     try {
       const result = {};
-      await this.queryApi.queryRows(fluxQuery, {
-        next(row, tableMeta) {
-          const o = tableMeta.toObject(row);
-          if (!result[o.sensor_type]) {
-            result[o.sensor_type] = [];
+      await new Promise((resolve, reject) => {
+        this.queryApi.queryRows(fluxQuery, {
+          next(row, tableMeta) {
+            const o = tableMeta.toObject(row);
+            if (!result[o.sensor_type]) {
+              result[o.sensor_type] = [];
+            }
+            result[o.sensor_type].push({
+              timestamp: o._time,
+              value: o._value,
+              unit: o.unit
+            });
+          },
+          error(error) {
+            logger.error('❌ Historical query error:', error);
+            reject(error);
+          },
+          complete() {
+            resolve();
           }
-          result[o.sensor_type].push({
-            timestamp: o._time,
-            value: o._value,
-            unit: o.unit
-          });
-        },
-        error(error) {
-          logger.error('❌ Historical query error:', error);
-          throw error;
-        },
-        complete() {}
+        });
       });
 
       return result;
@@ -272,25 +282,29 @@ class InfluxService {
 
     try {
       const result = [];
-      await this.queryApi.queryRows(fluxQuery, {
-        next(row, tableMeta) {
-          const o = tableMeta.toObject(row);
-          if (o._field === 'duration_ms') {
-            result.push({
-              timestamp: o._time,
-              duration_ms: o._value,
-              volume_ml: 0,
-              trigger_type: o.trigger_type,
-              success: true,
-              reason: o.reason || ''
-            });
+      await new Promise((resolve, reject) => {
+        this.queryApi.queryRows(fluxQuery, {
+          next(row, tableMeta) {
+            const o = tableMeta.toObject(row);
+            if (o._field === 'duration_ms') {
+              result.push({
+                timestamp: o._time,
+                duration_ms: o._value,
+                volume_ml: 0,
+                trigger_type: o.trigger_type,
+                success: true,
+                reason: o.reason || ''
+              });
+            }
+          },
+          error(error) {
+            logger.error('❌ Watering history query error:', error);
+            reject(error);
+          },
+          complete() {
+            resolve();
           }
-        },
-        error(error) {
-          logger.error('❌ Watering history query error:', error);
-          throw error;
-        },
-        complete() {}
+        });
       });
 
       return result;
@@ -317,22 +331,26 @@ class InfluxService {
 
     try {
       const anomalies = [];
-      await this.queryApi.queryRows(fluxQuery, {
-        next(row, tableMeta) {
-          const o = tableMeta.toObject(row);
-          anomalies.push({
-            timestamp: o._time,
-            sensor_type: sensorType,
-            value: o._value,
-            severity: o.anomaly,
-            message: `Unusual ${sensorType} reading detected`
-          });
-        },
-        error(error) {
-          logger.error('❌ Anomaly detection query error:', error);
-          throw error;
-        },
-        complete() {}
+      await new Promise((resolve, reject) => {
+        this.queryApi.queryRows(fluxQuery, {
+          next(row, tableMeta) {
+            const o = tableMeta.toObject(row);
+            anomalies.push({
+              timestamp: o._time,
+              sensor_type: sensorType,
+              value: o._value,
+              severity: o.anomaly,
+              message: `Unusual ${sensorType} reading detected`
+            });
+          },
+          error(error) {
+            logger.error('❌ Anomaly detection query error:', error);
+            reject(error);
+          },
+          complete() {
+            resolve();
+          }
+        });
       });
 
       return anomalies;
@@ -355,23 +373,27 @@ class InfluxService {
 
     try {
       const aggregates = {};
-      await this.queryApi.queryRows(fluxQuery, {
-        next(row, tableMeta) {
-          const o = tableMeta.toObject(row);
-          if (!aggregates[o.sensor_type]) {
-            aggregates[o.sensor_type] = [];
+      await new Promise((resolve, reject) => {
+        this.queryApi.queryRows(fluxQuery, {
+          next(row, tableMeta) {
+            const o = tableMeta.toObject(row);
+            if (!aggregates[o.sensor_type]) {
+              aggregates[o.sensor_type] = [];
+            }
+            aggregates[o.sensor_type].push({
+              date: o._time.toISOString().split('T')[0],
+              avg: o._value,
+              unit: o.unit
+            });
+          },
+          error(error) {
+            logger.error('❌ Daily aggregates query error:', error);
+            reject(error);
+          },
+          complete() {
+            resolve();
           }
-          aggregates[o.sensor_type].push({
-            date: o._time.toISOString().split('T')[0],
-            avg: o._value,
-            unit: o.unit
-          });
-        },
-        error(error) {
-          logger.error('❌ Daily aggregates query error:', error);
-          throw error;
-        },
-        complete() {}
+        });
       });
 
       return aggregates;
@@ -458,24 +480,28 @@ class InfluxService {
 
     try {
       const alerts = [];
-      await this.queryApi.queryRows(fluxQuery, {
-        next(row, tableMeta) {
-          const o = tableMeta.toObject(row);
-          alerts.push({
-            plant_id: o.plant_id,
-            sensor_type: o.sensor_type,
-            value: o._value,
-            unit: o.unit,
-            alert_type: o.alert_type,
-            timestamp: o._time,
-            severity: o.alert_type.includes('low') ? 'warning' : 'critical'
-          });
-        },
-        error(error) {
-          logger.error('❌ Alerts query error:', error);
-          throw error;
-        },
-        complete() {}
+      await new Promise((resolve, reject) => {
+        this.queryApi.queryRows(fluxQuery, {
+          next(row, tableMeta) {
+            const o = tableMeta.toObject(row);
+            alerts.push({
+              plant_id: o.plant_id,
+              sensor_type: o.sensor_type,
+              value: o._value,
+              unit: o.unit,
+              alert_type: o.alert_type,
+              timestamp: o._time,
+              severity: o.alert_type.includes('low') ? 'warning' : 'critical'
+            });
+          },
+          error(error) {
+            logger.error('❌ Alerts query error:', error);
+            reject(error);
+          },
+          complete() {
+            resolve();
+          }
+        });
       });
 
       return alerts;
