@@ -1,0 +1,251 @@
+# Staging Docker Compose for Testing before Production
+# Runs on different ports to allow parallel staging/production deployment
+
+services:
+  # InfluxDB Time Series Database (Staging)
+  influxdb-staging:
+    image: influxdb:2.7-alpine
+    container_name: planetplant-influxdb-staging
+    restart: unless-stopped
+    ports:
+      - '8087:8086'  # Different port for staging
+    environment:
+      # Staging-specific InfluxDB setup
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUXDB_USERNAME:-admin}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_PASSWORD:-plantplant123}
+      - DOCKER_INFLUXDB_INIT_ORG=${INFLUXDB_ORG:-planetplant-staging}
+      - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_BUCKET:-sensor-data-staging}
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_TOKEN:-plantplant-staging-token}
+      - DOCKER_INFLUXDB_INIT_RETENTION=${INFLUXDB_RETENTION:-30d}  # Shorter retention for staging
+    volumes:
+      - ./data/staging/influxdb:/var/lib/influxdb2
+    networks:
+      - planetplant-staging-network
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8086/ping']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 1G  # Reduced for staging
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+  # Mosquitto MQTT Broker (Staging)
+  mosquitto-staging:
+    image: eclipse-mosquitto:2.0.18-openssl
+    container_name: planetplant-mosquitto-staging
+    restart: unless-stopped
+    ports:
+      - '1884:1883'  # Different port for staging
+      - '9002:9001'  # WebSocket port
+    volumes:
+      - ./config/staging/mosquitto:/mosquitto/config
+      - ./data/staging/mosquitto:/mosquitto/data
+      - ./logs/staging/mosquitto:/mosquitto/log
+    networks:
+      - planetplant-staging-network
+    healthcheck:
+      test: ['CMD-SHELL', "mosquitto_pub -h localhost -t test -m 'health check' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M  # Reduced for staging
+          cpus: '0.5'
+
+  # Redis Cache (Staging)
+  redis-staging:
+    image: redis:7.2.5-alpine
+    container_name: planetplant-redis-staging
+    restart: unless-stopped
+    ports:
+      - '6380:6379'  # Different port for staging
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-plantplant123}
+    volumes:
+      - ./data/staging/redis:/data
+    networks:
+      - planetplant-staging-network
+    healthcheck:
+      test: ['CMD', 'redis-cli', '--raw', 'incr', 'ping']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M  # Reduced for staging
+          cpus: '0.5'
+
+  # Backend Node.js Server (Staging)
+  backend-staging:
+    image: ${REGISTRY_PREFIX:-ghcr.io/philksr/planetplant}/backend:${IMAGE_TAG:-develop}
+    build:
+      context: ./raspberry-pi
+      dockerfile: Dockerfile
+      args:
+        - NODE_VERSION=20-alpine
+    container_name: planetplant-backend-staging
+    restart: unless-stopped
+    ports:
+      - '3002:3000'  # Different port for staging
+    environment:
+      - NODE_ENV=${NODE_ENV:-staging}
+      - PORT=${PORT:-3000}
+      - HOST=${HOST:-0.0.0.0}
+      - LOG_LEVEL=${LOG_LEVEL:-debug}  # More verbose logging in staging
+      - LOG_DIR=/app/logs
+      - BACKEND_FILE_LOGGING=true
+      - BACKEND_CONSOLE_LOGGING=true
+      - INFLUXDB_URL=http://influxdb-staging:8086
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN:-plantplant-staging-token}
+      - INFLUXDB_ORG=${INFLUXDB_ORG:-planetplant-staging}
+      - INFLUXDB_BUCKET=${INFLUXDB_BUCKET:-sensor-data-staging}
+      - MQTT_HOST=${MQTT_HOST:-mosquitto-staging}
+      - MQTT_PORT=${MQTT_PORT:-1883}
+      - MQTT_CLIENT_ID=${MQTT_CLIENT_ID:-planetplant-server-staging}
+      - MQTT_USERNAME=${MQTT_USERNAME:-}
+      - MQTT_PASSWORD=${MQTT_PASSWORD:-}
+      - REDIS_HOST=${REDIS_HOST:-redis-staging}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-plantplant123}
+      - JWT_SECRET=${JWT_SECRET:-staging-jwt-secret-change-this}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:8080,http://localhost:3002}
+      - MOISTURE_THRESHOLD=${MOISTURE_THRESHOLD:-25}  # More sensitive for testing
+      - WATERING_DURATION=${WATERING_DURATION:-3000}  # Shorter duration for staging
+      - MAX_WATERING_PER_DAY=${MAX_WATERING_PER_DAY:-5}  # More tests allowed
+    volumes:
+      - ./logs/staging/backend:/app/logs
+      - /etc/localtime:/etc/localtime:ro
+    command: ["/bin/sh", "-c", "mkdir -p ${LOG_DIR:-/app/logs} && chown -R 1001:1001 ${LOG_DIR:-/app/logs} || true; exec node src/app.js"]
+    networks:
+      - planetplant-staging-network
+    depends_on:
+      influxdb-staging:
+        condition: service_healthy
+      mosquitto-staging:
+        condition: service_healthy
+      redis-staging:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/api/system/status']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1G  # Reduced for staging
+          cpus: '1.0'
+        reservations:
+          memory: 256M
+          cpus: '0.5'
+
+  # Frontend React PWA (Staging)
+  frontend-staging:
+    image: ${REGISTRY_PREFIX:-ghcr.io/philksr/planetplant}/frontend:${IMAGE_TAG:-develop}
+    build:
+      context: ./webapp
+      dockerfile: Dockerfile
+    container_name: planetplant-frontend-staging
+    restart: unless-stopped
+    expose:
+      - '80'
+    networks:
+      - planetplant-staging-network
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M  # Reduced for staging
+          cpus: '0.5'
+
+  # Nginx Reverse Proxy (Staging)
+  nginx-proxy-staging:
+    image: ${REGISTRY_PREFIX:-ghcr.io/philksr/planetplant}/nginx-proxy:${IMAGE_TAG:-develop}
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: planetplant-nginx-staging
+    restart: unless-stopped
+    ports:
+      - '8080:80'  # Different port for staging
+      - '8443:443'  # HTTPS staging port
+    volumes:
+      - ./config/staging/nginx:/etc/nginx/conf.d:ro
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - planetplant-staging-network
+    depends_on:
+      - backend-staging
+      - frontend-staging
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.25'
+
+  # Optional: Grafana for Staging Monitoring
+  grafana-staging:
+    image: grafana/grafana-oss:10.2.0
+    container_name: planetplant-grafana-staging
+    restart: unless-stopped
+    ports:
+      - '3003:3000'  # Different port for staging
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-staging123}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+      - GF_SERVER_ROOT_URL=http://localhost:3003/
+    volumes:
+      - ./data/staging/grafana:/var/lib/grafana
+      - ./config/staging/grafana/provisioning:/etc/grafana/provisioning
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - planetplant-staging-network
+    depends_on:
+      influxdb-staging:
+        condition: service_healthy
+    profiles:
+      - monitoring
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -f http://localhost:3000/api/health || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M  # Reduced for staging
+          cpus: '0.5'
+
+networks:
+  planetplant-staging-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.27.0.0/16  # Different subnet for staging

@@ -163,3 +163,7 @@ temp/
 
 # Docker Compose Override (local development only)
 docker-compose.override.yml
+
+# Environment-specific files (use .env.example as template)
+.env.staging.local
+.env.production.local

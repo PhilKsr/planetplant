@@ -47,7 +47,7 @@ clean: ## Clean up Docker resources and volumes
 	@echo "✅ Cleanup completed!"
 
 # =============================================================================
-# DEVELOPMENT vs PRODUCTION
+# DEVELOPMENT vs STAGING vs PRODUCTION
 # =============================================================================
 
 dev: ## Start development environment (Mac/Local)
@@ -57,6 +57,15 @@ dev: ## Start development environment (Mac/Local)
 	@echo "📊 Backend: http://localhost:3001"
 	@echo "🌐 Frontend: Start with 'make frontend-dev'"
 	@echo "📈 Grafana: http://localhost:3001 (admin/plantplant123)"
+
+staging: staging-init ## Start staging environment (Testing)
+	@echo "🎭 Starting PlanetPlant staging environment..."
+	$(DOCKER_COMPOSE) -f docker-compose.staging.yml up --build -d
+	@echo "✅ Staging environment started!"
+	@echo "🌐 Frontend: http://localhost:8080"
+	@echo "📊 Backend API: http://localhost:3002/api"
+	@echo "📈 Grafana: http://localhost:3003 (admin/staging123)"
+	@echo "🗄️ InfluxDB: http://localhost:8087"
 
 prod: init ## Start production environment (Raspberry Pi 5)
 	@echo "🍓 Starting PlanetPlant production environment..."
@@ -68,6 +77,9 @@ prod: init ## Start production environment (Raspberry Pi 5)
 
 dev-down: ## Stop development environment
 	$(DOCKER_COMPOSE) -f docker-compose.dev.yml down
+
+staging-down: ## Stop staging environment
+	$(DOCKER_COMPOSE) -f docker-compose.staging.yml down
 
 # =============================================================================
 # MONITORING & MAINTENANCE
@@ -196,6 +208,61 @@ logs-frontend: ## Show frontend logs
 logs-influxdb: ## Show InfluxDB logs
 	$(DOCKER_COMPOSE) logs -f influxdb
 
+staging-init: ## Initialize staging directories and config
+	@echo "🎭 Initializing staging environment..."
+	@mkdir -p data/staging/{mosquitto,influxdb,redis,grafana}
+	@mkdir -p config/staging/{mosquitto,grafana/provisioning}
+	@mkdir -p logs/staging/{mosquitto,backend}
+	@chmod -R 755 data/staging config/staging logs/staging
+	@if [ ! -f config/staging/mosquitto/mosquitto.conf ]; then \
+		echo "📝 Staging MQTT config already exists"; \
+	fi
+	@echo "✅ Staging initialization complete"
+
+staging-logs: ## Show staging logs
+	$(DOCKER_COMPOSE) -f docker-compose.staging.yml logs -f --tail=50
+
+staging-status: ## Show staging status
+	@echo "📊 Staging Environment Status"
+	@echo "============================"
+	@echo ""
+	@$(DOCKER_COMPOSE) -f docker-compose.staging.yml ps 2>/dev/null || echo "❌ Staging not running"
+	@echo ""
+	@echo "🌐 Staging URLs:"
+	@echo "   Frontend:  http://localhost:8080"
+	@echo "   Backend:   http://localhost:3002/api"
+	@echo "   InfluxDB:  http://localhost:8087"
+	@echo "   Grafana:   http://localhost:3003"
+
+staging-clean: ## Clean staging environment
+	@echo "🧹 Cleaning staging environment..."
+	$(DOCKER_COMPOSE) -f docker-compose.staging.yml down -v
+	@rm -rf data/staging logs/staging
+	@echo "✅ Staging cleanup completed"
+
+staging-health: ## Quick staging health check
+	@echo "💓 Staging Health Check"
+	@echo "======================"
+	@curl -s http://localhost:8080/health && echo " ✅ Frontend OK" || echo " ❌ Frontend DOWN"
+	@curl -s http://localhost:3002/api/system/status > /dev/null && echo " ✅ Backend OK" || echo " ❌ Backend DOWN"
+	@curl -s http://localhost:8087/ping > /dev/null && echo " ✅ InfluxDB OK" || echo " ❌ InfluxDB DOWN"
+
+promote-to-prod: ## Merge develop to main (promote staging to production)
+	@echo "🚀 Promoting staging to production..."
+	@echo "This will merge develop branch to main and trigger production deployment"
+	@echo ""
+	@read -p "Are you sure? This will deploy to production [y/N]: " confirm && \
+	if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
+		git fetch origin && \
+		git checkout main && \
+		git pull origin main && \
+		git merge develop && \
+		git push origin main && \
+		echo "✅ Promotion completed! Production deployment will start automatically."; \
+	else \
+		echo "❌ Promotion cancelled"; \
+	fi
+
 # =============================================================================
 # SECURITY & MAINTENANCE
 # =============================================================================
@@ -235,8 +302,16 @@ help: ## Show this help message
 	@echo ""
 	@echo -e "${BOLD}Environment:${NC}"
 	@echo -e "  🍓 ${YELLOW}Production (Pi 5):${NC}     make prod"
+	@echo -e "  🎭 ${YELLOW}Staging (Testing):${NC}     make staging"
 	@echo -e "  💻 ${YELLOW}Development (Mac):${NC}     make dev"
 	@echo -e "  📊 ${YELLOW}With Monitoring:${NC}       make monitoring"
+	@echo ""
+	@echo -e "${BOLD}Staging Commands:${NC}"
+	@echo -e "  🎭 make staging           Start staging environment"
+	@echo -e "  📊 make staging-status    Show staging status"
+	@echo -e "  📋 make staging-logs      Show staging logs"
+	@echo -e "  🧹 make staging-clean     Clean staging data"
+	@echo -e "  🚀 make promote-to-prod   Promote staging to production"
 	@echo ""
 	@echo -e "${BOLD}For more information:${NC} see README.md"
 

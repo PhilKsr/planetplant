@@ -292,6 +292,44 @@ make test
 make lint
 ```
 
+### Staging Environment
+
+PlanetPlant verfügt über eine vollständige Staging-Umgebung für Tests vor Production:
+
+```bash
+# Staging starten (separate Ports)
+make staging
+
+# Staging Status prüfen
+make staging-status
+
+# Staging Logs
+make staging-logs
+
+# Staging Health Check
+make staging-health
+
+# Staging bereinigen
+make staging-clean
+```
+
+**Staging URLs:**
+- Frontend: http://localhost:8080
+- Backend API: http://localhost:3002/api
+- InfluxDB: http://localhost:8087
+- Grafana: http://localhost:3003
+
+### Branch-basierte Deployments
+
+- **develop branch** → Automatisches Staging Deployment
+- **main branch** → Automatisches Production Deployment
+- **Pull Requests** → Staging Tests
+
+```bash
+# Staging zu Production promoten
+make promote-to-prod
+```
+
 ### Code-Standards
 - **ESLint** für JavaScript/React
 - **Prettier** für Code-Formatierung
