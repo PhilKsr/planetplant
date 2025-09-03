@@ -6,7 +6,9 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const logDir = path.join(__dirname, '../../logs');
+const LOG_DIR = process.env.LOG_DIR || '/app/logs';
+const FILE_LOGGING = String(process.env.BACKEND_FILE_LOGGING || 'true') === 'true';
+const CONSOLE_LOGGING = String(process.env.BACKEND_CONSOLE_LOGGING || 'true') === 'true';
 
 const logFormat = winston.format.combine(
   winston.format.timestamp({
@@ -35,8 +37,8 @@ const consoleFormat = winston.format.combine(
 // Create transports array
 const transports = [];
 
-// Console transport (always enabled in development)
-if (process.env.NODE_ENV !== 'production' || process.env.LOG_TO_CONSOLE === 'true') {
+// Console transport
+if (CONSOLE_LOGGING) {
   transports.push(
     new winston.transports.Console({
       format: consoleFormat,
@@ -45,44 +47,60 @@ if (process.env.NODE_ENV !== 'production' || process.env.LOG_TO_CONSOLE === 'tru
   );
 }
 
+import fs from 'fs';
+
+function ensureLogDirSafe(dir) {
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+  } catch (e) {
+    // Don't crash - console logging remains active
+  }
+}
+
 // File transports
-if (process.env.LOG_TO_FILE !== 'false') {
-  // General log file with rotation
-  transports.push(
-    new DailyRotateFile({
-      filename: path.join(logDir, 'plantplant-%DATE%.log'),
-      datePattern: 'YYYY-MM-DD',
-      maxSize: process.env.LOG_MAX_SIZE || '20m',
-      maxFiles: process.env.LOG_MAX_FILES || '14d',
-      format: logFormat,
-      level: process.env.LOG_LEVEL || 'info'
-    })
-  );
-
-  // Error-only log file
-  transports.push(
-    new DailyRotateFile({
-      filename: path.join(logDir, 'error-%DATE%.log'),
-      datePattern: 'YYYY-MM-DD',
-      maxSize: process.env.LOG_MAX_SIZE || '20m',
-      maxFiles: process.env.LOG_MAX_FILES || '30d',
-      format: logFormat,
-      level: 'error'
-    })
-  );
-
-  // Debug log file (only in development or when explicitly enabled)
-  if (process.env.NODE_ENV === 'development' || process.env.DEBUG_LOGGING === 'true') {
+if (FILE_LOGGING) {
+  ensureLogDirSafe(LOG_DIR);
+  
+  try {
+    // General log file with rotation
     transports.push(
       new DailyRotateFile({
-        filename: path.join(logDir, 'debug-%DATE%.log'),
+        filename: path.join(LOG_DIR, 'plantplant-%DATE%.log'),
         datePattern: 'YYYY-MM-DD',
         maxSize: process.env.LOG_MAX_SIZE || '20m',
-        maxFiles: '7d',
+        maxFiles: process.env.LOG_MAX_FILES || '14d',
         format: logFormat,
-        level: 'debug'
+        level: process.env.LOG_LEVEL || 'info'
       })
     );
+
+    // Error-only log file
+    transports.push(
+      new DailyRotateFile({
+        filename: path.join(LOG_DIR, 'error-%DATE%.log'),
+        datePattern: 'YYYY-MM-DD',
+        maxSize: process.env.LOG_MAX_SIZE || '20m',
+        maxFiles: process.env.LOG_MAX_FILES || '30d',
+        format: logFormat,
+        level: 'error'
+      })
+    );
+
+    // Debug log file (only in development or when explicitly enabled)
+    if (process.env.NODE_ENV === 'development' || process.env.DEBUG_LOGGING === 'true') {
+      transports.push(
+        new DailyRotateFile({
+          filename: path.join(LOG_DIR, 'debug-%DATE%.log'),
+          datePattern: 'YYYY-MM-DD',
+          maxSize: process.env.LOG_MAX_SIZE || '20m',
+          maxFiles: '7d',
+          format: logFormat,
+          level: 'debug'
+        })
+      );
+    }
+  } catch (e) {
+    // Fallback without crash: skip file logging, use console only
   }
 }
 
@@ -94,14 +112,14 @@ const logger = winston.createLogger({
   exitOnError: false,
   
   // Handle uncaught exceptions
-  exceptionHandlers: [
-    new winston.transports.File({ filename: path.join(logDir, 'exceptions.log') })
-  ],
+  exceptionHandlers: FILE_LOGGING ? [
+    new winston.transports.File({ filename: path.join(LOG_DIR, 'exceptions.log') })
+  ] : [],
   
   // Handle unhandled promise rejections
-  rejectionHandlers: [
-    new winston.transports.File({ filename: path.join(logDir, 'rejections.log') })
-  ]
+  rejectionHandlers: FILE_LOGGING ? [
+    new winston.transports.File({ filename: path.join(LOG_DIR, 'rejections.log') })
+  ] : []
 });
 
 // Add request logging helper
@@ -199,21 +217,14 @@ logger.logPerformance = (operation, duration, metadata = {}) => {
   }
 };
 
-// Create logs directory if it doesn't exist
-import { mkdirSync } from 'fs';
-try {
-  mkdirSync(logDir, { recursive: true });
-} catch (error) {
-  console.error('Failed to create logs directory:', error);
-}
 
 // Log startup information
 logger.info('Logger initialized', {
   logLevel: process.env.LOG_LEVEL || 'info',
-  logDir,
+  logDir: LOG_DIR,
   nodeEnv: process.env.NODE_ENV,
-  consoleLogging: transports.some(t => t.name === 'console'),
-  fileLogging: transports.some(t => t.filename)
+  consoleLogging: CONSOLE_LOGGING,
+  fileLogging: FILE_LOGGING
 });
 
 export { logger };

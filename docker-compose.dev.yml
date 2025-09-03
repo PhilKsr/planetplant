@@ -86,6 +86,9 @@ services:
       - PORT=3000
       - HOST=0.0.0.0
       - LOG_LEVEL=debug
+      - LOG_DIR=/app/logs
+      - BACKEND_FILE_LOGGING=true
+      - BACKEND_CONSOLE_LOGGING=true
       - INFLUXDB_URL=http://influxdb:8086
       - INFLUXDB_TOKEN=${INFLUXDB_TOKEN:-plantplant-super-secret-auth-token}
       - INFLUXDB_ORG=${INFLUXDB_ORG:-planetplant}
@@ -106,7 +109,8 @@ services:
     volumes:
       - ./raspberry-pi/src:/app/src:ro
       - ./raspberry-pi/package.json:/app/package.json:ro
-      - ./raspberry-pi/logs:/app/logs
+      - ./logs/backend:/app/logs
+    command: ["/bin/sh", "-c", "mkdir -p ${LOG_DIR:-/app/logs} && chown -R 1001:1001 ${LOG_DIR:-/app/logs} || true; exec node src/app.js"]
     networks:
       - planetplant-network
     depends_on:

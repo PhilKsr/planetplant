@@ -32,9 +32,9 @@ COPY --from=dependencies /app/node_modules ./node_modules
 # Copy application code
 COPY --chown=nodejs:nodejs . .
 
-# Create required directories
-RUN mkdir -p data logs && chown -R nodejs:nodejs data logs
-
+# Set LOG_DIR environment variable and create required directories
+ENV LOG_DIR=/app/logs
+RUN mkdir -p "$LOG_DIR" /app/data && chown -R nodejs:nodejs "$LOG_DIR" /app/data
 
 USER nodejs
 

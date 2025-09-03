@@ -114,7 +114,8 @@ services:
       - PORT=${PORT:-3000}
       - HOST=${HOST:-0.0.0.0}
       - LOG_LEVEL=${LOG_LEVEL:-info}
-      - BACKEND_FILE_LOGGING=false
+      - LOG_DIR=/app/logs
+      - BACKEND_FILE_LOGGING=true
       - BACKEND_CONSOLE_LOGGING=true
       - INFLUXDB_URL=http://influxdb:8086
       - INFLUXDB_TOKEN=${INFLUXDB_TOKEN:-plantplant-super-secret-auth-token}
@@ -134,7 +135,9 @@ services:
       - WATERING_DURATION=${WATERING_DURATION:-5000}
       - MAX_WATERING_PER_DAY=${MAX_WATERING_PER_DAY:-3}
     volumes:
+      - ./logs/backend:/app/logs
       - /etc/localtime:/etc/localtime:ro
+    command: ["/bin/sh", "-c", "mkdir -p ${LOG_DIR:-/app/logs} && chown -R 1001:1001 ${LOG_DIR:-/app/logs} || true; exec node src/app.js"]
     networks:
       - planetplant-network
     depends_on:
