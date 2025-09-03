@@ -1,0 +1,57 @@
+# Example Terraform configuration for PlanetPlant cloud deployment
+# Copy to terraform.tfvars and fill in your values
+
+## Basic Configuration
+domain_name = "your-domain.com"
+environment = "production"  # or "staging", "development"
+project_name = "planetplant"
+
+## AWS Configuration (aws/ directory)
+aws_region = "us-east-1"
+instance_type = "t3.medium"
+root_volume_size = 50
+ssl_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/..."
+
+## DigitalOcean Configuration (digitalocean/ directory)
+do_token = "dop_v1_..."
+do_region = "fra1"
+droplet_size = "s-2vcpu-4gb"
+use_managed_database = false
+use_app_platform = false
+enable_separate_volume = false
+data_volume_size = 50
+
+## DNS Failover Configuration (dns-failover/ directory)
+primary_ip = "203.0.113.1"        # Your Raspberry Pi public IP
+secondary_ip = "203.0.113.2"      # Your cloud instance IP
+primary_domain = "your-domain.com"
+secondary_domain = "cloud.your-domain.com"
+api_rate_limit_threshold = 100
+
+## SSH Access
+public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC... your-email@example.com"
+allowed_ssh_cidrs = ["203.0.113.0/24"]  # Restrict to your IP range
+mqtt_allowed_cidrs = ["0.0.0.0/0"]      # Or restrict to known device IPs
+
+## Application Secrets (Generate secure values)
+influxdb_password = "influxdb-admin-password-here"
+influxdb_token = "influxdb-token-64-chars-long"
+redis_password = "redis-password-here"
+jwt_secret = "jwt-secret-256-bit-key"
+grafana_password = "grafana-admin-password"
+
+## Cloudflare Configuration
+cloudflare_zone_id = "your-cloudflare-zone-id"
+cloudflare_api_token = "your-cloudflare-api-token"
+
+## Notifications
+alert_email = "admin@your-domain.com"
+notification_email = "alerts@your-domain.com"
+slack_webhook = "https://hooks.slack.com/services/..."
+
+## Optional GitHub (for App Platform)
+github_repo = "your-org/planetplant"
+
+## Monitoring & Alerting
+backup_retention_days = 30
+log_retention_days = 14

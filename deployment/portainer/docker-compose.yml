@@ -1,0 +1,133 @@
+# Portainer CE for PlanetPlant Container Management
+# Provides web-based Docker management interface
+
+version: '3.8'
+
+services:
+  portainer:
+    image: portainer/portainer-ce:2.21.4
+    container_name: planetplant-portainer
+    restart: unless-stopped
+    ports:
+      - "9000:9000"      # HTTP interface
+      - "9443:9443"      # HTTPS interface (when SSL enabled)
+    environment:
+      # Portainer configuration
+      - PORTAINER_HTTP_ENABLED=true
+      - PORTAINER_HTTPS_ENABLED=false  # Set to true when SSL is configured
+      - PORTAINER_TUNNEL_PORT=8000
+      - PORTAINER_EDGE_COMPUTE_ENABLE=false
+    volumes:
+      # Portainer persistent data
+      - portainer_data:/data
+      # Docker socket for container management
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # SSL certificates (when enabled)
+      - ./ssl:/certs:ro
+      # Backup directory
+      - ./backups:/backups
+      # Stack templates
+      - ./stacks:/stacks:ro
+      # Timezone
+      - /etc/localtime:/etc/localtime:ro
+    command: >
+      --admin-password-file /data/admin_password
+      --hide-label com.docker.compose.project
+      --hide-label com.docker.compose.service
+      --logo "https://raw.githubusercontent.com/PhilKsr/planetplant/main/webapp/public/logo.png"
+    networks:
+      - portainer-network
+      - planetplant-network      # Connect to main PlanetPlant network
+      - planetplant-staging-network  # Connect to staging network
+    healthcheck:
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:9000/api/status']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.25'
+    labels:
+      - "traefik.enable=false"  # Disable if Traefik is used
+      - "backup.exclude=true"   # Exclude from automatic backups
+
+  # Portainer Edge Agent (for remote management if needed)
+  portainer-agent:
+    image: portainer/agent:2.21.4
+    container_name: planetplant-portainer-agent
+    restart: unless-stopped
+    environment:
+      # Agent configuration
+      - AGENT_CLUSTER_ADDR=planetplant-portainer-agent
+      - AGENT_PORT=9001
+      - LOG_LEVEL=INFO
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker/volumes:/var/lib/docker/volumes
+      - /:/host:ro
+    ports:
+      - "9001:9001"
+    networks:
+      - portainer-network
+    profiles:
+      - agent  # Only start when explicitly requested
+    healthcheck:
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:9001/ping']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+
+  # Watchtower for automatic updates (optional)
+  watchtower:
+    image: containrrr/watchtower:1.7.1
+    container_name: planetplant-watchtower
+    restart: unless-stopped
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=86400  # Check daily
+      - WATCHTOWER_ROLLING_RESTART=true
+      - WATCHTOWER_INCLUDE_STOPPED=true
+      - WATCHTOWER_REVIVE_STOPPED=false
+      - WATCHTOWER_NOTIFICATIONS=slack
+      - WATCHTOWER_NOTIFICATION_SLACK_HOOK_URL=${SLACK_WEBHOOK:-}
+      - WATCHTOWER_NOTIFICATION_SLACK_IDENTIFIER=planetplant-watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - portainer-network
+    profiles:
+      - autoupdate  # Only start when explicitly requested
+    labels:
+      - "com.centurylinklabs.watchtower.scope=planetplant"
+
+volumes:
+  portainer_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/deployment/portainer/data
+
+networks:
+  portainer-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+  planetplant-network:
+    external: true
+    name: planetplant_planetplant-network
+  planetplant-staging-network:
+    external: true
+    name: planetplant_planetplant-staging-network

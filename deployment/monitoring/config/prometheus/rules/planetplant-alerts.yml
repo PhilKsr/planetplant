@@ -1,0 +1,145 @@
+groups:
+  - name: planetplant.rules
+    rules:
+      # Service Down Alerts
+      - alert: ServiceDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "Service {{ $labels.job }} on {{ $labels.instance }} has been down for more than 2 minutes."
+
+      # Response Time Alerts
+      - alert: HighResponseTime
+        expr: probe_http_duration_seconds > 2
+        for: 5m
+        labels:
+          severity: warning  
+          category: performance
+        annotations:
+          summary: "High response time for {{ $labels.instance }}"
+          description: "{{ $labels.instance }} response time is {{ $value }}s (threshold: 2s)"
+
+      # Error Rate Alerts
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          category: errors
+        annotations:
+          summary: "High error rate for {{ $labels.job }}"
+          description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%)"
+
+      # Memory Usage Alerts  
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          category: resources
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is {{ $value | humanizePercentage }} (threshold: 80%)"
+
+      # Disk Space Alerts
+      - alert: LowDiskSpace
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.2
+        for: 2m
+        labels:
+          severity: warning
+          category: resources
+        annotations:
+          summary: "Low disk space on {{ $labels.instance }}"
+          description: "Disk space remaining: {{ $value | humanizePercentage }} (threshold: 20%)"
+
+      # Critical Disk Space
+      - alert: CriticalDiskSpace
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.1
+        for: 1m
+        labels:
+          severity: critical
+          category: resources
+        annotations:
+          summary: "Critical disk space on {{ $labels.instance }}"
+          description: "Disk space remaining: {{ $value | humanizePercentage }} (threshold: 10%)"
+
+      # CPU Usage Alerts
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 10m
+        labels:
+          severity: warning
+          category: resources
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is {{ $value }}% (threshold: 80%)"
+
+      # Container Restart Alerts
+      - alert: ContainerRestarts
+        expr: increase(container_start_time_seconds[1h]) > 3
+        for: 0m
+        labels:
+          severity: warning
+          category: stability
+        annotations:
+          summary: "Container {{ $labels.name }} restarting frequently"
+          description: "Container {{ $labels.name }} has restarted {{ $value }} times in the last hour"
+
+      # MQTT Connection Alerts
+      - alert: MQTTConnectionLost
+        expr: probe_success{job="blackbox-tcp", instance=~"localhost:188[34]"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          category: connectivity
+        annotations:
+          summary: "MQTT broker connection lost"
+          description: "MQTT broker on {{ $labels.instance }} is unreachable for more than 2 minutes"
+
+      # Database Connection Alerts
+      - alert: DatabaseConnectionLost
+        expr: probe_success{job="blackbox-http", instance=~".*:808[67]/ping"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          category: connectivity
+        annotations:
+          summary: "Database connection lost"
+          description: "InfluxDB on {{ $labels.instance }} is unreachable for more than 2 minutes"
+
+      # No Sensor Data Alert
+      - alert: NoSensorData
+        expr: time() - influxdb_last_sensor_reading_timestamp > 900  # 15 minutes
+        for: 0m
+        labels:
+          severity: warning
+          category: sensors
+        annotations:
+          summary: "No sensor data received"
+          description: "No sensor readings have been received for more than 15 minutes. Last reading: {{ $value | humanizeDuration }} ago"
+
+      # Backend Health Check Failed
+      - alert: BackendHealthCheckFailed
+        expr: probe_success{job="blackbox-http", instance=~".*:300[12]/api/health"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          category: application
+        annotations:
+          summary: "Backend health check failing"
+          description: "Backend health endpoint {{ $labels.instance }} failing for more than 2 minutes"
+
+      # Frontend Not Accessible
+      - alert: FrontendNotAccessible
+        expr: probe_success{job="blackbox-http", instance=~"localhost(:8080)?/health"} == 0
+        for: 5m
+        labels:
+          severity: warning
+          category: application
+        annotations:
+          summary: "Frontend not accessible"
+          description: "Frontend application {{ $labels.instance }} not accessible for more than 5 minutes"

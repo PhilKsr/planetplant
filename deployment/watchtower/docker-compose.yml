@@ -1,0 +1,120 @@
+# Watchtower Automatic Container Updates for PlanetPlant
+# Monitors and updates containers with selective policies and notifications
+
+version: '3.8'
+
+services:
+  watchtower:
+    image: containrrr/watchtower:1.7.1
+    container_name: planetplant-watchtower
+    restart: unless-stopped
+    environment:
+      # Update Schedule (2-4 AM daily)
+      - WATCHTOWER_SCHEDULE=0 0 2-4 * * *
+      - TZ=Europe/Berlin
+      
+      # Update Behavior
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_REMOVE_VOLUMES=false
+      - WATCHTOWER_INCLUDE_STOPPED=true
+      - WATCHTOWER_REVIVE_STOPPED=false
+      - WATCHTOWER_ROLLING_RESTART=true
+      - WATCHTOWER_TIMEOUT=300s
+      
+      # Label-based filtering
+      - WATCHTOWER_LABEL_ENABLE=true
+      - WATCHTOWER_SCOPE=planetplant
+      
+      # Health Check Integration
+      - WATCHTOWER_LIFECYCLE_HOOKS=true
+      - WATCHTOWER_HTTP_API_UPDATE=true
+      - WATCHTOWER_HTTP_API_METRICS=true
+      - WATCHTOWER_HTTP_API_TOKEN=${WATCHTOWER_API_TOKEN:-watchtower-api-token}
+      
+      # Email Notifications
+      - WATCHTOWER_NOTIFICATIONS=email
+      - WATCHTOWER_NOTIFICATION_EMAIL_FROM=${SMTP_FROM:-watchtower@planetplant.local}
+      - WATCHTOWER_NOTIFICATION_EMAIL_TO=${NOTIFICATION_EMAIL:-admin@planetplant.local}
+      - WATCHTOWER_NOTIFICATION_EMAIL_SERVER=${SMTP_SERVER:-smtp.gmail.com}
+      - WATCHTOWER_NOTIFICATION_EMAIL_SERVER_PORT=${SMTP_PORT:-587}
+      - WATCHTOWER_NOTIFICATION_EMAIL_SERVER_USER=${SMTP_USER:-}
+      - WATCHTOWER_NOTIFICATION_EMAIL_SERVER_PASSWORD=${SMTP_PASSWORD:-}
+      - WATCHTOWER_NOTIFICATION_EMAIL_DELAY=2
+      - WATCHTOWER_NOTIFICATION_EMAIL_SUBJECTTAG=[PlanetPlant]
+      
+      # Slack Notifications (Alternative)
+      - WATCHTOWER_NOTIFICATION_SLACK_HOOK_URL=${SLACK_WEBHOOK:-}
+      - WATCHTOWER_NOTIFICATION_SLACK_IDENTIFIER=planetplant-watchtower
+      - WATCHTOWER_NOTIFICATION_SLACK_CHANNEL=#planetplant-alerts
+      
+      # Debug and Logging
+      - WATCHTOWER_DEBUG=${WATCHTOWER_DEBUG:-false}
+      - WATCHTOWER_LOG_LEVEL=${WATCHTOWER_LOG_LEVEL:-info}
+      - WATCHTOWER_TRACE=false
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./scripts:/scripts:ro
+      - ./logs:/logs
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - '8080:8080'  # HTTP API for metrics and manual triggers
+    networks:
+      - watchtower-network
+      - planetplant-network
+      - planetplant-staging-network
+      - monitoring-network
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -f http://localhost:8080/v1/health || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+        reservations:
+          memory: 128M
+          cpus: '0.1'
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"  # Don't update watchtower itself
+      - "com.centurylinklabs.watchtower.scope=planetplant"
+
+  # Watchtower Webhook Relay (for external triggers)
+  watchtower-webhook:
+    image: containrrr/watchtower:1.7.1
+    container_name: planetplant-watchtower-webhook
+    restart: unless-stopped
+    environment:
+      - WATCHTOWER_HTTP_API_UPDATE=true
+      - WATCHTOWER_HTTP_API_TOKEN=${WATCHTOWER_API_TOKEN:-watchtower-api-token}
+      - WATCHTOWER_ONCE=true
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_LABEL_ENABLE=true
+      - WATCHTOWER_SCOPE=planetplant
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - watchtower-network
+    profiles:
+      - webhook  # Only start when webhook mode needed
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+      - "com.centurylinklabs.watchtower.scope=planetplant"
+
+networks:
+  watchtower-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/16
+  planetplant-network:
+    external: true
+    name: planetplant_planetplant-network
+  planetplant-staging-network:
+    external: true
+    name: planetplant_planetplant-staging-network
+  monitoring-network:
+    external: true
+    name: planetplant_monitoring-network

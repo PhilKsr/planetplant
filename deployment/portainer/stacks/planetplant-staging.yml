@@ -1,0 +1,228 @@
+# PlanetPlant Staging Stack Template for Portainer
+# Testing environment with separate ports and enhanced logging
+
+version: '3.8'
+
+services:
+  # InfluxDB Time Series Database (Staging)
+  influxdb-staging:
+    image: influxdb:2.7-alpine
+    container_name: planetplant-influxdb-staging
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+      - "com.centurylinklabs.watchtower.scope=planetplant"
+    ports:
+      - '8087:8086'
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUXDB_USERNAME:-admin}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_PASSWORD:-plantplant123}
+      - DOCKER_INFLUXDB_INIT_ORG=${INFLUXDB_ORG:-planetplant-staging}
+      - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_BUCKET:-sensor-data-staging}
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_TOKEN:-plantplant-staging-token}
+      - DOCKER_INFLUXDB_INIT_RETENTION=${INFLUXDB_RETENTION:-30d}
+    volumes:
+      - ./data/staging/influxdb:/var/lib/influxdb2
+    networks:
+      - planetplant-staging-network
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8086/ping']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+  # Mosquitto MQTT Broker (Staging)
+  mosquitto-staging:
+    image: eclipse-mosquitto:2.0.18-openssl
+    container_name: planetplant-mosquitto-staging
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+      - "com.centurylinklabs.watchtower.scope=planetplant"
+    ports:
+      - '1884:1883'
+      - '9002:9001'
+    volumes:
+      - ./config/staging/mosquitto:/mosquitto/config
+      - ./data/staging/mosquitto:/mosquitto/data
+      - ./logs/staging/mosquitto:/mosquitto/log
+    networks:
+      - planetplant-staging-network
+    healthcheck:
+      test: ['CMD-SHELL', "mosquitto_pub -h localhost -t test -m 'health check' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Redis Cache (Staging)
+  redis-staging:
+    image: redis:7.2.5-alpine
+    container_name: planetplant-redis-staging
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+      - "com.centurylinklabs.watchtower.scope=planetplant"
+    ports:
+      - '6380:6379'
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-plantplant123}
+    volumes:
+      - ./data/staging/redis:/data
+    networks:
+      - planetplant-staging-network
+    healthcheck:
+      test: ['CMD', 'redis-cli', '--raw', 'incr', 'ping']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Backend Node.js Server (Staging)
+  backend-staging:
+    image: ${REGISTRY_PREFIX:-ghcr.io/philksr/planetplant}/backend:${IMAGE_TAG:-develop}
+    container_name: planetplant-backend-staging
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=planetplant"
+      - "com.centurylinklabs.watchtower.stop-signal=SIGTERM"
+      - "com.centurylinklabs.watchtower.lifecycle.pre-update=/scripts/backup-service.sh backend-staging"
+    ports:
+      - '3002:3000'
+    environment:
+      - NODE_ENV=${NODE_ENV:-staging}
+      - PORT=${PORT:-3000}
+      - HOST=${HOST:-0.0.0.0}
+      - LOG_LEVEL=${LOG_LEVEL:-debug}
+      - LOG_DIR=/app/logs
+      - BACKEND_FILE_LOGGING=true
+      - BACKEND_CONSOLE_LOGGING=true
+      - INFLUXDB_URL=http://influxdb-staging:8086
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN:-plantplant-staging-token}
+      - INFLUXDB_ORG=${INFLUXDB_ORG:-planetplant-staging}
+      - INFLUXDB_BUCKET=${INFLUXDB_BUCKET:-sensor-data-staging}
+      - MQTT_HOST=${MQTT_HOST:-mosquitto-staging}
+      - MQTT_PORT=${MQTT_PORT:-1883}
+      - MQTT_CLIENT_ID=${MQTT_CLIENT_ID:-planetplant-server-staging}
+      - REDIS_HOST=${REDIS_HOST:-redis-staging}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-plantplant123}
+      - JWT_SECRET=${JWT_SECRET:-staging-jwt-secret-change-this}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:8080,http://localhost:3002}
+      - MOISTURE_THRESHOLD=${MOISTURE_THRESHOLD:-25}
+      - WATERING_DURATION=${WATERING_DURATION:-3000}
+      - MAX_WATERING_PER_DAY=${MAX_WATERING_PER_DAY:-5}
+      - MQTT_VERBOSE_LOGGING=true
+      - SENSOR_VERBOSE_LOGGING=true
+    volumes:
+      - ./logs/staging/backend:/app/logs
+      - /etc/localtime:/etc/localtime:ro
+    command: ["/bin/sh", "-c", "mkdir -p ${LOG_DIR:-/app/logs} && chown -R 1001:1001 ${LOG_DIR:-/app/logs} || true; exec node src/app.js"]
+    networks:
+      - planetplant-staging-network
+    depends_on:
+      - influxdb-staging
+      - mosquitto-staging
+      - redis-staging
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/api/system/status']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Frontend React PWA (Staging)
+  frontend-staging:
+    image: ${REGISTRY_PREFIX:-ghcr.io/philksr/planetplant}/frontend:${IMAGE_TAG:-develop}
+    container_name: planetplant-frontend-staging
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=planetplant"
+      - "com.centurylinklabs.watchtower.stop-signal=SIGTERM"
+    expose:
+      - '80'
+    networks:
+      - planetplant-staging-network
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Nginx Reverse Proxy (Staging)
+  nginx-proxy-staging:
+    image: ${REGISTRY_PREFIX:-ghcr.io/philksr/planetplant}/nginx-proxy:${IMAGE_TAG:-develop}
+    container_name: planetplant-nginx-staging
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=planetplant"
+      - "com.centurylinklabs.watchtower.stop-signal=SIGTERM"
+    ports:
+      - '8080:80'
+      - '8443:443'
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - planetplant-staging-network
+    depends_on:
+      - backend-staging
+      - frontend-staging
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Grafana for Staging Monitoring
+  grafana-staging:
+    image: grafana/grafana-oss:10.2.0
+    container_name: planetplant-grafana-staging
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=planetplant"
+      - "com.centurylinklabs.watchtower.stop-signal=SIGTERM"
+    ports:
+      - '3003:3000'
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-staging123}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3003/
+    volumes:
+      - ./data/staging/grafana:/var/lib/grafana
+      - ./config/staging/grafana/provisioning:/etc/grafana/provisioning
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - planetplant-staging-network
+    depends_on:
+      - influxdb-staging
+    profiles:
+      - monitoring
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -f http://localhost:3000/api/health || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+networks:
+  planetplant-staging-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.27.0.0/16

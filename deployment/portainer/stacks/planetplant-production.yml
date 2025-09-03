@@ -1,5 +1,7 @@
-# Production Docker Compose for Raspberry Pi 5
-# Optimized for ARM64 architecture with 8GB RAM
+# PlanetPlant Production Stack Template for Portainer
+# Complete IoT plant monitoring system for production deployment
+
+version: '3.8'
 
 services:
   # InfluxDB Time Series Database
@@ -13,15 +15,6 @@ services:
     ports:
       - '8086:8086'
     environment:
-      # Initial setup - uncomment for first run or after data reset
-      - DOCKER_INFLUXDB_INIT_MODE=setup
-      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUXDB_USERNAME:-admin}
-      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_PASSWORD:-plantplant123}
-      - DOCKER_INFLUXDB_INIT_ORG=${INFLUXDB_ORG:-planetplant}
-      - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_BUCKET:-sensor-data}
-      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_TOKEN:-plantplant-super-secret-auth-token}
-      - DOCKER_INFLUXDB_INIT_RETENTION=${INFLUXDB_RETENTION:-90d}
-      # Persistent variables for init.sh (safe for restarts)
       - INFLUX_INIT_ORG=${INFLUXDB_ORG:-planetplant}
       - INFLUX_INIT_BUCKET=${INFLUXDB_BUCKET:-sensor-data}
       - INFLUX_INIT_RETENTION=${INFLUXDB_RETENTION:-90d}
@@ -68,14 +61,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
-        reservations:
-          memory: 128M
-          cpus: '0.25'
 
   # Redis Cache and Session Store
   redis:
@@ -98,23 +83,10 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-          cpus: '1.0'
-        reservations:
-          memory: 256M
-          cpus: '0.5'
 
   # Backend Node.js Server
   backend:
     image: ${REGISTRY_PREFIX:-ghcr.io/philksr/planetplant}/backend:${IMAGE_TAG:-latest}
-    build:
-      context: ./raspberry-pi
-      dockerfile: Dockerfile
-      args:
-        - NODE_VERSION=20-alpine
     container_name: planetplant-backend
     restart: unless-stopped
     labels:
@@ -139,8 +111,6 @@ services:
       - MQTT_HOST=${MQTT_HOST:-mosquitto}
       - MQTT_PORT=${MQTT_PORT:-1883}
       - MQTT_CLIENT_ID=${MQTT_CLIENT_ID:-planetplant-server}
-      - MQTT_USERNAME=${MQTT_USERNAME:-}
-      - MQTT_PASSWORD=${MQTT_PASSWORD:-}
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_PASSWORD=${REDIS_PASSWORD:-plantplant123}
@@ -156,33 +126,19 @@ services:
     networks:
       - planetplant-network
     depends_on:
-      influxdb:
-        condition: service_healthy
-      mosquitto:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - influxdb
+      - mosquitto
+      - redis
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:3000/api/system/status']
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 30s
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-          cpus: '2.0'
-        reservations:
-          memory: 512M
-          cpus: '1.0'
 
   # Frontend React PWA
   frontend:
     image: ${REGISTRY_PREFIX:-ghcr.io/philksr/planetplant}/frontend:${IMAGE_TAG:-latest}
-    build:
-      context: ./webapp
-      dockerfile: Dockerfile
     container_name: planetplant-frontend
     restart: unless-stopped
     labels:
@@ -199,21 +155,10 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
-        reservations:
-          memory: 128M
-          cpus: '0.25'
 
   # Nginx Reverse Proxy
   nginx-proxy:
     image: ${REGISTRY_PREFIX:-ghcr.io/philksr/planetplant}/nginx-proxy:${IMAGE_TAG:-latest}
-    build:
-      context: ./nginx
-      dockerfile: Dockerfile
     container_name: planetplant-nginx
     restart: unless-stopped
     labels:
@@ -236,16 +181,8 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.5'
-        reservations:
-          memory: 64M
-          cpus: '0.25'
 
-  # Optional: Grafana for Advanced Monitoring
+  # Optional: Grafana for Monitoring
   grafana:
     image: grafana/grafana-oss:10.2.0
     container_name: planetplant-grafana
@@ -260,7 +197,6 @@ services:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-plantplant123}
       - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
     volumes:
       - ./data/grafana:/var/lib/grafana
       - ./config/grafana/provisioning:/etc/grafana/provisioning
@@ -268,8 +204,7 @@ services:
     networks:
       - planetplant-network
     depends_on:
-      influxdb:
-        condition: service_healthy
+      - influxdb
     profiles:
       - monitoring
     healthcheck:
@@ -278,16 +213,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-          cpus: '1.0'
-        reservations:
-          memory: 512M
-          cpus: '0.5'
-
-# Volumes now use relative paths - no named volumes needed
 
 networks:
   planetplant-network:

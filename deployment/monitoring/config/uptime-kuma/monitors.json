@@ -1,0 +1,193 @@
+{
+  "monitors": [
+    {
+      "name": "PlanetPlant Backend (Production)",
+      "type": "http",
+      "url": "http://localhost:3001/api/health",
+      "interval": 60,
+      "retryInterval": 60,
+      "resendInterval": 0,
+      "maxretries": 3,
+      "timeout": 48,
+      "method": "GET",
+      "headers": {
+        "User-Agent": "Uptime-Kuma/PlanetPlant"
+      },
+      "accepted_statuscodes": ["200"],
+      "expected_response": "healthy",
+      "description": "Main backend API health endpoint",
+      "tags": ["backend", "production", "api"]
+    },
+    {
+      "name": "PlanetPlant Backend (Staging)", 
+      "type": "http",
+      "url": "http://localhost:3002/api/health",
+      "interval": 60,
+      "retryInterval": 60,
+      "resendInterval": 0,
+      "maxretries": 3,
+      "timeout": 48,
+      "method": "GET",
+      "headers": {
+        "User-Agent": "Uptime-Kuma/PlanetPlant"
+      },
+      "accepted_statuscodes": ["200"],
+      "expected_response": "healthy",
+      "description": "Staging backend API health endpoint",
+      "tags": ["backend", "staging", "api"]
+    },
+    {
+      "name": "PlanetPlant Frontend (Production)",
+      "type": "http", 
+      "url": "http://localhost/health",
+      "interval": 60,
+      "retryInterval": 60,
+      "maxretries": 3,
+      "timeout": 30,
+      "method": "GET",
+      "accepted_statuscodes": ["200"],
+      "description": "Production frontend web application",
+      "tags": ["frontend", "production", "web"]
+    },
+    {
+      "name": "PlanetPlant Frontend (Staging)",
+      "type": "http",
+      "url": "http://localhost:8080/health", 
+      "interval": 60,
+      "retryInterval": 60,
+      "maxretries": 3,
+      "timeout": 30,
+      "method": "GET",
+      "accepted_statuscodes": ["200"],
+      "description": "Staging frontend web application",
+      "tags": ["frontend", "staging", "web"]
+    },
+    {
+      "name": "InfluxDB (Production)",
+      "type": "http",
+      "url": "http://localhost:8086/ping",
+      "interval": 120,
+      "retryInterval": 60,
+      "maxretries": 3,
+      "timeout": 30,
+      "method": "GET",
+      "accepted_statuscodes": ["200"],
+      "description": "InfluxDB time-series database",
+      "tags": ["database", "production", "influxdb"]
+    },
+    {
+      "name": "InfluxDB (Staging)",
+      "type": "http",
+      "url": "http://localhost:8087/ping",
+      "interval": 120,
+      "retryInterval": 60,
+      "maxretries": 3,
+      "timeout": 30,
+      "method": "GET",
+      "accepted_statuscodes": ["200"],
+      "description": "InfluxDB staging database",
+      "tags": ["database", "staging", "influxdb"]
+    },
+    {
+      "name": "MQTT Broker (Production)",
+      "type": "port",
+      "hostname": "localhost",
+      "port": 1883,
+      "interval": 120,
+      "retryInterval": 60,
+      "maxretries": 3,
+      "timeout": 30,
+      "description": "Mosquitto MQTT message broker",
+      "tags": ["mqtt", "production", "broker"]
+    },
+    {
+      "name": "MQTT Broker (Staging)",
+      "type": "port", 
+      "hostname": "localhost",
+      "port": 1884,
+      "interval": 120,
+      "retryInterval": 60,
+      "maxretries": 3,
+      "timeout": 30,
+      "description": "Mosquitto MQTT staging broker",
+      "tags": ["mqtt", "staging", "broker"]
+    },
+    {
+      "name": "Redis Cache (Production)",
+      "type": "port",
+      "hostname": "localhost", 
+      "port": 6379,
+      "interval": 120,
+      "retryInterval": 60,
+      "maxretries": 3,
+      "timeout": 30,
+      "description": "Redis cache and session store",
+      "tags": ["redis", "production", "cache"]
+    },
+    {
+      "name": "Redis Cache (Staging)",
+      "type": "port",
+      "hostname": "localhost",
+      "port": 6380,
+      "interval": 120,
+      "retryInterval": 60,
+      "maxretries": 3, 
+      "timeout": 30,
+      "description": "Redis staging cache",
+      "tags": ["redis", "staging", "cache"]
+    },
+    {
+      "name": "Grafana Monitoring",
+      "type": "http",
+      "url": "http://localhost:3004/api/health",
+      "interval": 300,
+      "retryInterval": 60,
+      "maxretries": 3,
+      "timeout": 30,
+      "method": "GET",
+      "accepted_statuscodes": ["200"],
+      "description": "Grafana monitoring dashboards",
+      "tags": ["monitoring", "grafana"]
+    },
+    {
+      "name": "Portainer Management",
+      "type": "http",
+      "url": "http://localhost:9000/api/status",
+      "interval": 300,
+      "retryInterval": 60, 
+      "maxretries": 3,
+      "timeout": 30,
+      "method": "GET",
+      "accepted_statuscodes": ["200"],
+      "description": "Portainer container management",
+      "tags": ["management", "portainer"]
+    },
+    {
+      "name": "System Load Average",
+      "type": "ping",
+      "hostname": "localhost",
+      "interval": 300,
+      "retryInterval": 60,
+      "maxretries": 1,
+      "timeout": 30,
+      "description": "Basic system connectivity check",
+      "tags": ["system", "ping"]
+    }
+  ],
+  "notification_settings": {
+    "down_threshold_minutes": 2,
+    "response_time_threshold_ms": 2000,
+    "error_rate_threshold_percent": 5,
+    "disk_space_threshold_percent": 20,
+    "sensor_data_timeout_minutes": 15
+  },
+  "status_page": {
+    "title": "PlanetPlant System Status",
+    "description": "Real-time status monitoring for PlanetPlant IoT plant watering system",
+    "public": true,
+    "show_tags": true,
+    "show_powered_by": false,
+    "theme": "auto",
+    "incident_style": "style1"
+  }
+}

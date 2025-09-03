@@ -1,0 +1,47 @@
+apiVersion: 1
+
+datasources:
+  # Prometheus Health Metrics
+  - name: Prometheus-Health
+    type: prometheus
+    access: proxy
+    orgId: 1
+    url: http://prometheus:9090
+    isDefault: true
+    version: 1
+    editable: false
+    jsonData:
+      httpMethod: POST
+      exemplarTraceIdDestinations:
+        - name: trace_id
+          datasourceUid: tempo
+
+  # InfluxDB Production Data
+  - name: InfluxDB-Production
+    type: influxdb
+    access: proxy
+    orgId: 1
+    url: http://host.docker.internal:8086
+    user: admin
+    secureJsonData:
+      token: ${INFLUXDB_TOKEN}
+    jsonData:
+      version: Flux
+      organization: ${INFLUXDB_ORG:-planetplant}
+      defaultBucket: ${INFLUXDB_BUCKET:-sensor-data}
+      maxSeries: 1000
+
+  # InfluxDB Staging Data
+  - name: InfluxDB-Staging
+    type: influxdb
+    access: proxy
+    orgId: 1
+    url: http://host.docker.internal:8087
+    user: admin
+    secureJsonData:
+      token: ${INFLUXDB_TOKEN}
+    jsonData:
+      version: Flux
+      organization: ${INFLUXDB_ORG:-planetplant-staging}
+      defaultBucket: ${INFLUXDB_BUCKET:-sensor-data-staging}
+      maxSeries: 1000

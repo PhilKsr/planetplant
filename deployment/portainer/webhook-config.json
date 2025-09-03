@@ -1,0 +1,37 @@
+{
+  "production": {
+    "webhook_url": "http://localhost:9000/api/webhooks/{WEBHOOK_ID}",
+    "trigger_event": "push",
+    "branch": "main",
+    "stack_name": "planetplant-production",
+    "environment_variables": {
+      "IMAGE_TAG": "latest",
+      "NODE_ENV": "production",
+      "LOG_LEVEL": "info"
+    },
+    "secret_token": "planetplant-webhook-secret"
+  },
+  "staging": {
+    "webhook_url": "http://localhost:9000/api/webhooks/{WEBHOOK_ID}",
+    "trigger_event": "push", 
+    "branch": "develop",
+    "stack_name": "planetplant-staging",
+    "environment_variables": {
+      "IMAGE_TAG": "develop",
+      "NODE_ENV": "staging",
+      "LOG_LEVEL": "debug"
+    },
+    "secret_token": "planetplant-webhook-secret"
+  },
+  "monitoring": {
+    "webhook_url": "http://localhost:9000/api/webhooks/{WEBHOOK_ID}",
+    "trigger_event": "push",
+    "branch": "main", 
+    "stack_name": "planetplant-monitoring",
+    "environment_variables": {
+      "PROMETHEUS_RETENTION": "30d",
+      "GRAFANA_ADMIN_PASSWORD": "monitoring123"
+    },
+    "secret_token": "planetplant-webhook-secret"
+  }
+}

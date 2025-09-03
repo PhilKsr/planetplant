@@ -1,0 +1,212 @@
+version: '3.8'
+
+services:
+  # Frontend (Nginx + React PWA)
+  frontend:
+    image: ghcr.io/planetplant/frontend:${IMAGE_TAG:-latest}
+    container_name: planetplant-frontend-aws
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /opt/planetplant/config/nginx:/etc/nginx/conf.d:ro
+      - /opt/planetplant/ssl:/etc/ssl/certs:ro
+    environment:
+      - REACT_APP_API_URL=https://api.${DOMAIN_NAME}
+      - REACT_APP_WS_URL=wss://api.${DOMAIN_NAME}
+    depends_on:
+      - backend
+    networks:
+      - planetplant-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Backend API (Node.js + Express)
+  backend:
+    image: ghcr.io/planetplant/backend:${IMAGE_TAG:-latest}
+    container_name: planetplant-backend-aws
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+      - INFLUXDB_ORG=${INFLUXDB_ORG:-planetplant}
+      - INFLUXDB_BUCKET=${INFLUXDB_BUCKET:-sensor-data}
+      - REDIS_URL=redis://redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - MQTT_HOST=mosquitto
+      - MQTT_PORT=1883
+      - JWT_SECRET=${JWT_SECRET}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_S3_BACKUP_BUCKET=${AWS_S3_BACKUP_BUCKET}
+      - CLOUD_PROVIDER=aws
+      - DOMAIN_NAME=${DOMAIN_NAME}
+    volumes:
+      - /opt/planetplant/logs:/app/logs
+      - /opt/planetplant/config:/app/config:ro
+    depends_on:
+      influxdb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+    networks:
+      - planetplant-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # InfluxDB (Time-series database)
+  influxdb:
+    image: influxdb:2.7-alpine
+    container_name: planetplant-influxdb-aws
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUXDB_USERNAME:-admin}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_PASSWORD}
+      - DOCKER_INFLUXDB_INIT_ORG=${INFLUXDB_ORG:-planetplant}
+      - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_BUCKET:-sensor-data}
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_TOKEN}
+      - INFLUXD_HTTP_BIND_ADDRESS=:8086
+      - INFLUXD_HTTP_LOG_ENABLED=false
+    volumes:
+      - /opt/planetplant/data/influxdb:/var/lib/influxdb2
+      - /opt/planetplant/config/influxdb:/etc/influxdb2
+      - /opt/planetplant/backup/influxdb:/backups
+    networks:
+      - planetplant-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # Redis (Session storage and caching)
+  redis:
+    image: redis:7-alpine
+    container_name: planetplant-redis-aws
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    volumes:
+      - /opt/planetplant/data/redis:/data
+      - /opt/planetplant/config/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf --requirepass ${REDIS_PASSWORD}
+    networks:
+      - planetplant-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # Mosquitto (MQTT Broker)
+  mosquitto:
+    image: eclipse-mosquitto:2.0-openssl
+    container_name: planetplant-mosquitto-aws
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - /opt/planetplant/config/mosquitto:/mosquitto/config:ro
+      - /opt/planetplant/data/mosquitto:/mosquitto/data
+      - /opt/planetplant/logs/mosquitto:/mosquitto/log
+    networks:
+      - planetplant-network
+    healthcheck:
+      test: ["CMD", "mosquitto_pub", "-h", "localhost", "-t", "test", "-m", "health-check", "-u", "${MQTT_USERNAME:-}", "-P", "${MQTT_PASSWORD:-}"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Backup service (Cloud-optimized)
+  backup:
+    image: ghcr.io/planetplant/backup:${IMAGE_TAG:-latest}
+    container_name: planetplant-backup-aws
+    restart: unless-stopped
+    environment:
+      - RESTIC_REPOSITORY=s3:s3.amazonaws.com/${AWS_S3_BACKUP_BUCKET}/restic
+      - RESTIC_PASSWORD=${RESTIC_PASSWORD}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_DEFAULT_REGION=${AWS_REGION:-us-east-1}
+      - BACKUP_SCHEDULE=${BACKUP_SCHEDULE:-0 2 * * *}
+      - BACKUP_RETENTION=${BACKUP_RETENTION:-30d}
+      - SLACK_WEBHOOK=${SLACK_WEBHOOK}
+    volumes:
+      - /opt/planetplant:/data/planetplant:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /opt/planetplant/backup/scripts:/scripts:ro
+    depends_on:
+      - influxdb
+      - redis
+      - mosquitto
+    networks:
+      - planetplant-network
+
+  # Monitoring (Grafana)
+  grafana:
+    image: grafana/grafana:10.0.0
+    container_name: planetplant-grafana-aws
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_SERVER_DOMAIN=${DOMAIN_NAME}
+      - GF_SERVER_ROOT_URL=https://${DOMAIN_NAME}/grafana
+      - GF_DATABASE_TYPE=sqlite3
+      - GF_DATABASE_PATH=/var/lib/grafana/grafana.db
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_INSTALL_PLUGINS=grafana-worldmap-panel
+      - AWS_DEFAULT_REGION=${AWS_REGION:-us-east-1}
+    volumes:
+      - /opt/planetplant/data/grafana:/var/lib/grafana
+      - /opt/planetplant/config/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - influxdb
+    networks:
+      - planetplant-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+networks:
+  planetplant-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  influxdb-data:
+    driver: local
+  redis-data:
+    driver: local
+  grafana-data:
+    driver: local

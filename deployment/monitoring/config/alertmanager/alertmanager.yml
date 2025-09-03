@@ -1,0 +1,164 @@
+global:
+  smtp_smarthost: '${SMTP_SERVER:-smtp.gmail.com}:${SMTP_PORT:-587}'
+  smtp_from: '${ALERT_EMAIL_FROM:-alerts@planetplant.local}'
+  smtp_auth_username: '${SMTP_USER:-}'
+  smtp_auth_password: '${SMTP_PASSWORD:-}'
+  smtp_require_tls: true
+
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  receiver: 'default'
+  routes:
+    # Critical alerts go to immediate notification
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      group_wait: 10s
+      group_interval: 1m
+      repeat_interval: 1h
+      
+    # Warning alerts grouped and sent less frequently
+    - match:
+        severity: warning
+      receiver: 'warning-alerts'
+      group_interval: 10m
+      repeat_interval: 6h
+
+    # Resource alerts go to ops team
+    - match:
+        category: resources
+      receiver: 'ops-alerts'
+      
+    # Sensor-specific alerts
+    - match:
+        category: sensors
+      receiver: 'sensor-alerts'
+
+receivers:
+  - name: 'default'
+    email_configs:
+      - to: '${NOTIFICATION_EMAIL:-admin@planetplant.local}'
+        subject: '[PlanetPlant] {{ .GroupLabels.alertname }}'
+        body: |
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Severity: {{ .Labels.severity }}
+          Started: {{ .StartsAt }}
+          {{ end }}
+
+  - name: 'critical-alerts'
+    email_configs:
+      - to: '${CRITICAL_EMAIL:-admin@planetplant.local}'
+        subject: '[PlanetPlant CRITICAL] {{ .GroupLabels.alertname }}'
+        body: |
+          🚨 CRITICAL ALERT 🚨
+          
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Instance: {{ .Labels.instance }}
+          Started: {{ .StartsAt }}
+          
+          {{ end }}
+          
+          Please investigate immediately.
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK:-}'
+        channel: '#planetplant-critical'
+        title: '🚨 PlanetPlant Critical Alert'
+        text: |
+          {{ range .Alerts }}
+          *{{ .Annotations.summary }}*
+          {{ .Annotations.description }}
+          Instance: {{ .Labels.instance }}
+          {{ end }}
+        color: danger
+        send_resolved: true
+
+  - name: 'warning-alerts'
+    email_configs:
+      - to: '${WARNING_EMAIL:-admin@planetplant.local}'
+        subject: '[PlanetPlant Warning] {{ .GroupLabels.alertname }}'
+        body: |
+          ⚠️  Warning Alert
+          
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Instance: {{ .Labels.instance }}
+          Started: {{ .StartsAt }}
+          {{ end }}
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK:-}'
+        channel: '#planetplant-alerts'
+        title: '⚠️ PlanetPlant Warning'
+        text: |
+          {{ range .Alerts }}
+          *{{ .Annotations.summary }}*
+          {{ .Annotations.description }}
+          {{ end }}
+        color: warning
+        send_resolved: true
+
+  - name: 'ops-alerts'
+    email_configs:
+      - to: '${OPS_EMAIL:-ops@planetplant.local}'
+        subject: '[PlanetPlant Ops] Resource Alert - {{ .GroupLabels.alertname }}'
+        body: |
+          🔧 System Resource Alert
+          
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Value: {{ .Annotations.value }}
+          Instance: {{ .Labels.instance }}
+          Started: {{ .StartsAt }}
+          {{ end }}
+
+  - name: 'sensor-alerts'
+    email_configs:
+      - to: '${SENSOR_EMAIL:-sensors@planetplant.local}'
+        subject: '[PlanetPlant Sensors] {{ .GroupLabels.alertname }}'
+        body: |
+          🌱 Sensor Alert
+          
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Started: {{ .StartsAt }}
+          {{ end }}
+          
+          Check your plant sensors and ESP32 devices.
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK:-}'
+        channel: '#planetplant-sensors'
+        title: '🌱 PlanetPlant Sensor Alert'
+        text: |
+          {{ range .Alerts }}
+          *{{ .Annotations.summary }}*
+          {{ .Annotations.description }}
+          {{ end }}
+        color: good
+        send_resolved: true
+
+inhibit_rules:
+  # Don't send warning if critical alert is already firing for the same service
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['instance', 'alertname']
+
+  # Don't send resource alerts if service is already down
+  - source_match:
+      alertname: 'ServiceDown'
+    target_match:
+      category: 'resources'
+    equal: ['instance']

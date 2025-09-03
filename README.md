@@ -1,5 +1,9 @@
 # 🌱 PlanetPlant - Smart Plant Monitoring System
 
+![System Status](https://img.shields.io/endpoint?url=http://localhost:3007/api/badge/system/overall&style=flat-square) ![Backend](https://img.shields.io/endpoint?url=http://localhost:3007/api/badge/backend-prod/status&style=flat-square&label=backend) ![Frontend](https://img.shields.io/endpoint?url=http://localhost:3007/api/badge/frontend-prod/status&style=flat-square&label=frontend) ![Database](https://img.shields.io/endpoint?url=http://localhost:3007/api/badge/influxdb-prod/status&style=flat-square&label=database)
+
+[![Status Page](https://img.shields.io/badge/status%20page-live-brightgreen?style=flat-square&logo=statuspage)](http://localhost:3005/status)
+
 **Intelligentes IoT-Pflanzenbewässerungssystem für Raspberry Pi 5**
 
 PlanetPlant ist ein vollständiges IoT-System zur automatischen Überwachung und Bewässerung von Pflanzen. Das System kombiniert ESP32-Sensoren, eine Raspberry Pi 5-Zentrale und eine moderne React-PWA für die Benutzeroberfläche.
@@ -167,27 +171,36 @@ make security-scan
 4. **Linting prüfen:** `make lint`
 5. **Pull Request** erstellen
 
-## 📊 Monitoring & Dashboards
+## 📊 Monitoring & Health Checks
+
+### 🔍 Status Dashboard
+- **Live Status:** [http://localhost:3005/status](http://localhost:3005/status) (Public Status Page)
+- **Uptime Kuma:** [http://localhost:3005](http://localhost:3005) (Health Monitoring)
+- **Grafana:** [http://localhost:3006](http://localhost:3006) (Metrics Dashboards)
+- **Prometheus:** [http://localhost:9091](http://localhost:9091) (Raw Metrics)
+
+### 🚨 Automatische Alerts
+- **Service Down** > 2 Minuten → Critical Alert
+- **Response Time** > 2 Sekunden → Warning
+- **Error Rate** > 5% → Warning  
+- **Disk Space** < 20% → Warning
+- **No Sensor Data** > 15 Minuten → Warning
+- **Memory Usage** > 80% → Warning
+
+### 📧 Notification Setup
+```bash
+# Setup monitoring with notifications
+./scripts/setup-monitoring.sh
+
+# Configure SMTP for alerts
+SMTP_USER=your-email@gmail.com ./scripts/configure-alerting.sh
+```
 
 ### Grafana Dashboards
-- **Plant Overview:** Alle Pflanzen auf einen Blick
-- **Sensor History:** Historische Daten und Trends
-- **System Health:** Performance und Fehler-Monitoring
-- **Automation Logs:** Bewässerungs-Historie
-
-### Automatische Alerts
-- 🚨 **Niedrige Bodenfeuchtigkeit** (< 30%)
-- 🚨 **Sensor-Ausfall** (keine Daten > 10min)
-- 🚨 **System-Fehler** (Service down)
-- 🚨 **Hohe Systemlast** (> 80% RAM/CPU)
-
-### Alert-Konfiguration
-```bash
-# In .env konfigurieren:
-EMAIL_ENABLED=true
-ALERT_RECIPIENTS=your-email@example.com
-SLACK_WEBHOOK_URL=https://hooks.slack.com/...
-```
+- **Health Overview:** System status and alerts
+- **Plant Monitoring:** Sensor data and automation
+- **Performance Metrics:** CPU, memory, disk usage
+- **Container Health:** Docker container monitoring
 
 ## 🐛 Troubleshooting
 

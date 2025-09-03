@@ -1,0 +1,211 @@
+# PlanetPlant Monitoring Stack Template for Portainer
+# Extended monitoring and observability stack
+
+version: '3.8'
+
+services:
+  # Prometheus for Metrics Collection
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: planetplant-prometheus
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=planetplant"
+      - "com.centurylinklabs.watchtower.stop-signal=SIGTERM"
+    ports:
+      - '9090:9090'
+    environment:
+      - PROMETHEUS_RETENTION_TIME=${PROMETHEUS_RETENTION:-30d}
+    volumes:
+      - ./config/prometheus:/etc/prometheus
+      - ./data/prometheus:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-30d}'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    networks:
+      - monitoring-network
+      - planetplant-network
+    healthcheck:
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:9090/']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Node Exporter for System Metrics
+  node-exporter:
+    image: prom/node-exporter:v1.6.1
+    container_name: planetplant-node-exporter
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=planetplant"
+      - "com.centurylinklabs.watchtower.stop-signal=SIGTERM"
+    ports:
+      - '9100:9100'
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    networks:
+      - monitoring-network
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.25'
+
+  # cAdvisor for Container Metrics
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.0
+    container_name: planetplant-cadvisor
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=planetplant"
+      - "com.centurylinklabs.watchtower.stop-signal=SIGTERM"
+    ports:
+      - '8080:8080'
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    devices:
+      - /dev/kmsg:/dev/kmsg
+    privileged: true
+    networks:
+      - monitoring-network
+    healthcheck:
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:8080/healthz']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Grafana for Advanced Monitoring
+  grafana-monitoring:
+    image: grafana/grafana-oss:10.2.0
+    container_name: planetplant-grafana-monitoring
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=planetplant"
+      - "com.centurylinklabs.watchtower.stop-signal=SIGTERM"
+    ports:
+      - '3004:3000'
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-monitoring123}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-piechart-panel,grafana-worldmap-panel
+      - GF_SERVER_ROOT_URL=http://localhost:3004/
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+    volumes:
+      - ./data/monitoring/grafana:/var/lib/grafana
+      - ./config/monitoring/grafana:/etc/grafana/provisioning
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - monitoring-network
+      - planetplant-network
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -f http://localhost:3000/api/health || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # AlertManager for Alert Management
+  alertmanager:
+    image: prom/alertmanager:v0.25.0
+    container_name: planetplant-alertmanager
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=planetplant"
+      - "com.centurylinklabs.watchtower.stop-signal=SIGTERM"
+    ports:
+      - '9093:9093'
+    environment:
+      - ALERTMANAGER_WEB_LISTEN_ADDRESS=0.0.0.0:9093
+    volumes:
+      - ./config/alertmanager:/etc/alertmanager
+      - ./data/alertmanager:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+      - '--web.listen-address=0.0.0.0:9093'
+    networks:
+      - monitoring-network
+    healthcheck:
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:9093/']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Loki for Log Aggregation
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: planetplant-loki
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=planetplant"
+      - "com.centurylinklabs.watchtower.stop-signal=SIGTERM"
+    ports:
+      - '3100:3100'
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./config/loki:/etc/loki
+      - ./data/loki:/tmp/loki
+    networks:
+      - monitoring-network
+    healthcheck:
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:3100/ready']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Promtail for Log Collection
+  promtail:
+    image: grafana/promtail:2.9.0
+    container_name: planetplant-promtail
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=planetplant"
+      - "com.centurylinklabs.watchtower.stop-signal=SIGTERM"
+    volumes:
+      - ./config/promtail:/etc/promtail
+      - ./logs:/var/log/planetplant:ro
+      - /var/log:/var/log/host:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - monitoring-network
+    depends_on:
+      - loki
+
+networks:
+  monitoring-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.29.0.0/16
+  planetplant-network:
+    external: true
+    name: planetplant_planetplant-network

@@ -1,0 +1,279 @@
+# PlanetPlant Comprehensive Health Monitoring Stack
+# Uptime Kuma, Prometheus, Grafana for complete observability
+
+version: '3.8'
+
+services:
+  # Uptime Kuma Status Monitoring
+  uptime-kuma:
+    image: louislam/uptime-kuma:1.23.13
+    container_name: planetplant-uptime-kuma
+    restart: unless-stopped
+    ports:
+      - '3005:3001'
+    environment:
+      - UPTIME_KUMA_PORT=3001
+      - UPTIME_KUMA_HOST=0.0.0.0
+      - UPTIME_KUMA_DISABLE_FRAME_SAMEORIGIN=1
+      - NODE_ENV=production
+    volumes:
+      - ./data/uptime-kuma:/app/data
+      - ./config/uptime-kuma:/app/config:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - monitoring-network
+      - planetplant-network
+      - planetplant-staging-network
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -f http://localhost:3001/api/status-page/heartbeat || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=planetplant"
+      - "com.centurylinklabs.watchtower.stop-signal=SIGTERM"
+
+  # Prometheus Metrics Collector
+  prometheus:
+    image: prom/prometheus:v2.47.2
+    container_name: planetplant-prometheus-health
+    restart: unless-stopped
+    ports:
+      - '9091:9090'
+    environment:
+      - PROMETHEUS_RETENTION_TIME=${PROMETHEUS_RETENTION:-7d}
+    volumes:
+      - ./config/prometheus:/etc/prometheus
+      - ./data/prometheus:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-7d}'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+      - '--web.external-url=http://localhost:9091'
+    networks:
+      - monitoring-network
+      - planetplant-network
+      - planetplant-staging-network
+    healthcheck:
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:9090/']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=planetplant"
+      - "com.centurylinklabs.watchtower.stop-signal=SIGTERM"
+
+  # Node Exporter for System Metrics
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: planetplant-node-exporter-health
+    restart: unless-stopped
+    ports:
+      - '9101:9100'
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+      - '--collector.systemd'
+      - '--collector.processes'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    networks:
+      - monitoring-network
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.25'
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=planetplant"
+
+  # cAdvisor for Container Metrics
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.48.1
+    container_name: planetplant-cadvisor-health
+    restart: unless-stopped
+    ports:
+      - '8081:8080'
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    devices:
+      - /dev/kmsg:/dev/kmsg
+    privileged: true
+    networks:
+      - monitoring-network
+    healthcheck:
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:8080/healthz']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=planetplant"
+
+  # Grafana Health Dashboards
+  grafana-health:
+    image: grafana/grafana-oss:10.2.2
+    container_name: planetplant-grafana-health
+    restart: unless-stopped
+    ports:
+      - '3006:3000'
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-health123}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-piechart-panel,grafana-stat-panel,blackmirror1-statusbylabel-panel
+      - GF_SERVER_ROOT_URL=http://localhost:3006/
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+      - GF_FEATURE_TOGGLES_ENABLE=publicDashboards
+    volumes:
+      - ./data/grafana:/var/lib/grafana
+      - ./config/grafana:/etc/grafana/provisioning
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - monitoring-network
+      - planetplant-network
+    depends_on:
+      - prometheus
+      - uptime-kuma
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -f http://localhost:3000/api/health || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=planetplant"
+      - "com.centurylinklabs.watchtower.stop-signal=SIGTERM"
+
+  # AlertManager for Alert Routing
+  alertmanager:
+    image: prom/alertmanager:v0.26.0
+    container_name: planetplant-alertmanager-health
+    restart: unless-stopped
+    ports:
+      - '9094:9093'
+    environment:
+      - ALERTMANAGER_WEB_LISTEN_ADDRESS=0.0.0.0:9093
+    volumes:
+      - ./config/alertmanager:/etc/alertmanager
+      - ./data/alertmanager:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9094'
+      - '--web.listen-address=0.0.0.0:9093'
+      - '--log.level=info'
+    networks:
+      - monitoring-network
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:9093/']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=planetplant"
+
+  # Blackbox Exporter for External Monitoring
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.24.0
+    container_name: planetplant-blackbox-exporter
+    restart: unless-stopped
+    ports:
+      - '9115:9115'
+    volumes:
+      - ./config/blackbox:/etc/blackbox_exporter
+    command:
+      - '--config.file=/etc/blackbox_exporter/config.yml'
+    networks:
+      - monitoring-network
+      - planetplant-network
+      - planetplant-staging-network
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=planetplant"
+
+  # Status Badge API for External Badges
+  status-badge-api:
+    image: node:20-alpine
+    container_name: planetplant-status-badges
+    restart: unless-stopped
+    ports:
+      - '3007:3007'
+    environment:
+      - NODE_ENV=production
+      - BADGE_API_PORT=3007
+    volumes:
+      - ./status-badge-api.js:/app/index.js:ro
+      - /etc/localtime:/etc/localtime:ro
+    working_dir: /app
+    command: ['sh', '-c', 'npm init -y && npm install express axios && node index.js']
+    networks:
+      - monitoring-network
+      - planetplant-network
+      - planetplant-staging-network
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -f http://localhost:3007/health || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=planetplant"
+
+networks:
+  monitoring-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.31.0.0/16
+  planetplant-network:
+    external: true
+    name: planetplant_planetplant-network
+  planetplant-staging-network:
+    external: true
+    name: planetplant_planetplant-staging-network

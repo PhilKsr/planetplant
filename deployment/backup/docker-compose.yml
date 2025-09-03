@@ -1,0 +1,194 @@
+# PlanetPlant Automated Backup System
+# Restic + Rclone for encrypted cloud backups with retention policies
+
+version: '3.8'
+
+services:
+  # Restic Backup Manager
+  restic-backup:
+    image: restic/restic:0.16.4
+    container_name: planetplant-restic-backup
+    restart: unless-stopped
+    environment:
+      # Restic Repository Configuration
+      - RESTIC_REPOSITORY=${RESTIC_REPOSITORY:-/backups/restic-repo}
+      - RESTIC_PASSWORD=${RESTIC_PASSWORD:-planetplant-backup-encryption-key}
+      - RESTIC_CACHE_DIR=/cache
+      
+      # Backup Configuration
+      - BACKUP_SCHEDULE_DAILY=0 2 * * *     # 02:00 daily
+      - BACKUP_SCHEDULE_WEEKLY=0 3 * * 0    # 03:00 Sunday
+      - BACKUP_SCHEDULE_MONTHLY=0 4 1 * *   # 04:00 first day of month
+      
+      # Retention Policy
+      - KEEP_DAILY=7
+      - KEEP_WEEKLY=4
+      - KEEP_MONTHLY=12
+      - KEEP_YEARLY=2
+      
+      # Cloud Upload
+      - CLOUD_UPLOAD_ENABLED=${CLOUD_UPLOAD_ENABLED:-false}
+      - CLOUD_PROVIDER=${CLOUD_PROVIDER:-s3}
+      
+      # Notification Settings
+      - NOTIFICATION_EMAIL=${NOTIFICATION_EMAIL:-admin@planetplant.local}
+      - WEBHOOK_SUCCESS=${WEBHOOK_SUCCESS:-}
+      - WEBHOOK_FAILURE=${WEBHOOK_FAILURE:-}
+    volumes:
+      # Backup Sources
+      - /opt/planetplant/data:/data:ro
+      - /opt/planetplant/config:/config:ro
+      - /opt/planetplant/logs:/logs:ro
+      - /var/lib/docker/volumes:/docker-volumes:ro
+      
+      # Backup Storage
+      - ./data/restic:/backups
+      - ./cache:/cache
+      - ./scripts:/scripts:ro
+      
+      # System Access
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - backup-network
+      - planetplant-network
+      - planetplant-staging-network
+    command: |
+      sh -c '
+        # Initialize restic repository if needed
+        restic snapshots || restic init
+        
+        # Setup cron jobs
+        echo "$$BACKUP_SCHEDULE_DAILY /scripts/backup-daily.sh" > /var/spool/cron/crontabs/root
+        echo "$$BACKUP_SCHEDULE_WEEKLY /scripts/backup-weekly.sh" > /var/spool/cron/crontabs/root
+        echo "$$BACKUP_SCHEDULE_MONTHLY /scripts/backup-monthly.sh" > /var/spool/cron/crontabs/root
+        echo "0 5 * * * /scripts/cleanup-retention.sh" > /var/spool/cron/crontabs/root
+        
+        # Start cron daemon
+        crond -f -l 2
+      '
+    healthcheck:
+      test: ['CMD-SHELL', 'restic snapshots --last 1 || exit 1']
+      interval: 3600s
+      timeout: 30s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=planetplant"
+
+  # Rclone Cloud Sync
+  rclone-sync:
+    image: rclone/rclone:1.65.2
+    container_name: planetplant-rclone-sync
+    restart: unless-stopped
+    environment:
+      # Rclone Configuration
+      - RCLONE_CONFIG_DIR=/config/rclone
+      - RCLONE_CACHE_DIR=/cache
+      
+      # Cloud Provider Settings (S3 example)
+      - RCLONE_CONFIG_S3_TYPE=s3
+      - RCLONE_CONFIG_S3_ACCESS_KEY_ID=${S3_ACCESS_KEY:-}
+      - RCLONE_CONFIG_S3_SECRET_ACCESS_KEY=${S3_SECRET_KEY:-}
+      - RCLONE_CONFIG_S3_REGION=${S3_REGION:-eu-central-1}
+      - RCLONE_CONFIG_S3_ENDPOINT=${S3_ENDPOINT:-}
+      - RCLONE_CONFIG_S3_BUCKET=${S3_BUCKET:-planetplant-backups}
+      
+      # Google Drive Settings (alternative)
+      - RCLONE_CONFIG_GDRIVE_TYPE=drive
+      - RCLONE_CONFIG_GDRIVE_CLIENT_ID=${GDRIVE_CLIENT_ID:-}
+      - RCLONE_CONFIG_GDRIVE_CLIENT_SECRET=${GDRIVE_CLIENT_SECRET:-}
+      - RCLONE_CONFIG_GDRIVE_TOKEN=${GDRIVE_TOKEN:-}
+      
+      # Backblaze B2 Settings (alternative)
+      - RCLONE_CONFIG_B2_TYPE=b2
+      - RCLONE_CONFIG_B2_ACCOUNT=${B2_ACCOUNT_ID:-}
+      - RCLONE_CONFIG_B2_KEY=${B2_APPLICATION_KEY:-}
+      - RCLONE_CONFIG_B2_BUCKET=${B2_BUCKET:-planetplant-backups}
+      
+      # Sync Configuration
+      - CLOUD_SYNC_SCHEDULE=0 6 * * *       # 06:00 daily after backups
+      - CLOUD_RETENTION_DAYS=30
+      - PARALLEL_TRANSFERS=4
+      - MAX_TRANSFER_RATE=10M
+    volumes:
+      - ./data/restic:/backups:ro
+      - ./config/rclone:/config/rclone
+      - ./cache:/cache
+      - ./logs:/logs
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - backup-network
+    command: |
+      sh -c '
+        # Setup cloud sync cron job
+        echo "$$CLOUD_SYNC_SCHEDULE /scripts/sync-to-cloud.sh" > /var/spool/cron/crontabs/root
+        echo "0 7 * * 0 /scripts/cleanup-cloud.sh" > /var/spool/cron/crontabs/root
+        
+        # Start cron daemon
+        crond -f -l 2
+      '
+    profiles:
+      - cloud  # Only start when cloud backup is needed
+    healthcheck:
+      test: ['CMD-SHELL', 'rclone version || exit 1']
+      interval: 3600s
+      timeout: 30s
+      retries: 3
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=planetplant"
+
+  # Backup Monitor & Web Interface
+  backup-monitor:
+    image: node:20-alpine
+    container_name: planetplant-backup-monitor
+    restart: unless-stopped
+    ports:
+      - '3008:3000'
+    environment:
+      - NODE_ENV=production
+      - BACKUP_DIR=/backups
+      - LOG_LEVEL=info
+    volumes:
+      - ./data/restic:/backups:ro
+      - ./logs:/logs
+      - ./monitor-app.js:/app/index.js:ro
+      - /etc/localtime:/etc/localtime:ro
+    working_dir: /app
+    command: ['sh', '-c', 'npm init -y && npm install express axios fs-extra && node index.js']
+    networks:
+      - backup-network
+      - monitoring-network
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -f http://localhost:3000/health || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=planetplant"
+
+networks:
+  backup-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.32.0.0/16
+  planetplant-network:
+    external: true
+    name: planetplant_planetplant-network
+  planetplant-staging-network:
+    external: true
+    name: planetplant_planetplant-staging-network
+  monitoring-network:
+    external: true
+    name: planetplant_monitoring-network

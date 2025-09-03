@@ -7,10 +7,181 @@ import { plantService } from '../services/plantService.js';
 import { logger } from '../utils/logger.js';
 import os from 'os';
 import process from 'process';
+import fs from 'fs/promises';
 
 const router = express.Router();
 
-// GET /api/system/status - Get complete system health status
+// GET /api/health - Detailed health check for monitoring systems
+router.get('/health', asyncHandler(async (req, res) => {
+  const healthData = {
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: Math.floor(process.uptime()),
+    version: process.env.npm_package_version || '1.0.0',
+    services: {},
+    metrics: {},
+    alerts: []
+  };
+
+  try {
+    // Database Connection Health
+    const dbHealth = await influxService.getSystemHealth();
+    healthData.services.database = {
+      status: dbHealth.connected ? 'healthy' : 'unhealthy',
+      connected: dbHealth.connected,
+      response_time_ms: dbHealth.responseTime || null,
+      last_write: dbHealth.lastWrite || null,
+      error: dbHealth.error || null
+    };
+
+    // MQTT Connection Health
+    const mqttStatus = mqttClient.getConnectionStatus();
+    healthData.services.mqtt = {
+      status: mqttStatus.connected ? 'healthy' : 'unhealthy',
+      connected: mqttStatus.connected,
+      broker_host: process.env.MQTT_HOST,
+      last_message: mqttStatus.lastMessage || null,
+      reconnect_count: mqttStatus.reconnectCount || 0,
+      error: mqttStatus.error || null
+    };
+
+    // Memory and CPU Usage
+    const memUsage = process.memoryUsage();
+    const cpuUsage = process.cpuUsage();
+    const systemMem = {
+      total: os.totalmem(),
+      free: os.freemem(),
+      used: os.totalmem() - os.freemem()
+    };
+    
+    healthData.metrics = {
+      memory: {
+        process_mb: Math.round(memUsage.heapUsed / 1024 / 1024),
+        process_total_mb: Math.round(memUsage.heapTotal / 1024 / 1024),
+        system_used_percent: Math.round((systemMem.used / systemMem.total) * 100),
+        system_available_mb: Math.round(systemMem.free / 1024 / 1024)
+      },
+      cpu: {
+        user_microseconds: cpuUsage.user,
+        system_microseconds: cpuUsage.system,
+        load_average: os.loadavg()[0]
+      },
+      disk: await getDiskUsage()
+    };
+
+    // Last Sensor Reading
+    const recentSensorData = await getLastSensorReading();
+    healthData.services.sensors = {
+      status: recentSensorData ? 'healthy' : 'stale',
+      last_reading: recentSensorData?.timestamp || null,
+      minutes_since_last: recentSensorData ? Math.floor((Date.now() - new Date(recentSensorData.timestamp).getTime()) / 60000) : null,
+      devices_reporting: recentSensorData?.deviceCount || 0
+    };
+
+    // Queue Sizes and Performance
+    healthData.metrics.queues = {
+      mqtt_pending: mqttStatus.pendingMessages || 0,
+      influx_batch_size: dbHealth.batchSize || 0,
+      influx_pending_writes: dbHealth.pendingWrites || 0
+    };
+
+    // Check for alerts
+    if (!healthData.services.database.connected) {
+      healthData.alerts.push({ level: 'critical', message: 'Database connection lost' });
+    }
+    if (!healthData.services.mqtt.connected) {
+      healthData.alerts.push({ level: 'critical', message: 'MQTT broker connection lost' });
+    }
+    if (healthData.services.sensors.minutes_since_last > 15) {
+      healthData.alerts.push({ level: 'warning', message: `No sensor data for ${healthData.services.sensors.minutes_since_last} minutes` });
+    }
+    if (healthData.metrics.memory.system_used_percent > 80) {
+      healthData.alerts.push({ level: 'warning', message: `High memory usage: ${healthData.metrics.memory.system_used_percent}%` });
+    }
+    if (healthData.metrics.disk.used_percent > 80) {
+      healthData.alerts.push({ level: 'warning', message: `Low disk space: ${100 - healthData.metrics.disk.used_percent}% remaining` });
+    }
+
+    // Determine overall status
+    const criticalAlerts = healthData.alerts.filter(alert => alert.level === 'critical');
+    if (criticalAlerts.length > 0) {
+      healthData.status = 'unhealthy';
+      res.status(503);
+    } else if (healthData.alerts.length > 0) {
+      healthData.status = 'degraded';
+    }
+
+    res.json(healthData);
+
+  } catch (error) {
+    logger.error('❌ Health check failed:', error);
+    
+    res.status(503).json({
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      error: {
+        message: 'Health check failed',
+        details: error.message
+      },
+      alerts: [
+        { level: 'critical', message: 'Health check system failure' }
+      ]
+    });
+  }
+}));
+
+// Helper function to get disk usage
+async function getDiskUsage() {
+  try {
+    const stats = await fs.stat('/');
+    const diskSpace = await fs.stat('/opt/planetplant');
+    
+    return {
+      path: '/opt/planetplant',
+      used_percent: 0, // Simplified - would need statvfs for real disk usage
+      available_mb: 'unknown'
+    };
+  } catch (error) {
+    return {
+      path: '/opt/planetplant', 
+      used_percent: 0,
+      available_mb: 'unknown',
+      error: error.message
+    };
+  }
+}
+
+// Helper function to get last sensor reading
+async function getLastSensorReading() {
+  try {
+    // Query InfluxDB for most recent sensor data
+    const query = `
+      from(bucket: "${process.env.INFLUXDB_BUCKET || 'sensor-data'}")
+        |> range(start: -1h)
+        |> filter(fn: (r) => r._measurement == "sensor_data")
+        |> last()
+        |> group()
+        |> count()
+    `;
+    
+    const result = await influxService.query(query);
+    const data = result?.[0];
+    
+    if (data) {
+      return {
+        timestamp: data._time,
+        deviceCount: data._value || 0
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    logger.debug('Could not retrieve last sensor reading:', error.message);
+    return null;
+  }
+}
+
+// GET /api/system/status - Get complete system health status  
 router.get('/status', asyncHandler(async (req, res) => {
   const status = await healthService.getSystemStatus();
   

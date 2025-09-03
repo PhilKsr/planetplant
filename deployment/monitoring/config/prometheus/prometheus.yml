@@ -1,0 +1,120 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'planetplant-health-monitor'
+    cluster: 'raspberry-pi'
+
+rule_files:
+  - "rules/*.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    scrape_interval: 30s
+
+  # Node Exporter (System Metrics)
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 15s
+
+  # cAdvisor (Container Metrics)  
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+    scrape_interval: 15s
+
+  # PlanetPlant Backend Health Endpoints
+  - job_name: 'planetplant-backend-prod'
+    static_configs:
+      - targets: ['host.docker.internal:3001']
+    metrics_path: '/api/health'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    scheme: http
+    params:
+      format: ['prometheus']
+
+  - job_name: 'planetplant-backend-staging'
+    static_configs:
+      - targets: ['host.docker.internal:3002'] 
+    metrics_path: '/api/health'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    scheme: http
+    params:
+      format: ['prometheus']
+
+  # InfluxDB Metrics
+  - job_name: 'influxdb-prod'
+    static_configs:
+      - targets: ['host.docker.internal:8086']
+    metrics_path: '/metrics'
+    scrape_interval: 60s
+
+  - job_name: 'influxdb-staging'
+    static_configs:
+      - targets: ['host.docker.internal:8087']
+    metrics_path: '/metrics' 
+    scrape_interval: 60s
+
+  # Blackbox Exporter (External Service Probing)
+  - job_name: 'blackbox-http'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+        - http://localhost/health          # Production frontend
+        - http://localhost:8080/health     # Staging frontend
+        - http://localhost:3001/api/health # Production backend
+        - http://localhost:3002/api/health # Staging backend
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  # Blackbox TCP Probes
+  - job_name: 'blackbox-tcp'
+    metrics_path: /probe
+    params:
+      module: [tcp_connect]
+    static_configs:
+      - targets:
+        - localhost:1883   # MQTT Production
+        - localhost:1884   # MQTT Staging
+        - localhost:6379   # Redis Production  
+        - localhost:6380   # Redis Staging
+        - localhost:8086   # InfluxDB Production
+        - localhost:8087   # InfluxDB Staging
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  # Docker Container Health via cAdvisor
+  - job_name: 'docker-containers'
+    static_configs:
+      - targets: ['cadvisor:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    metric_relabel_configs:
+      - source_labels: [container_label_com_docker_compose_service]
+        target_label: service_name
+      - source_labels: [container_label_com_docker_compose_project] 
+        target_label: project_name
