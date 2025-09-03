@@ -75,6 +75,16 @@ prod: init ## Start production environment (Raspberry Pi 5)
 	@echo "📊 Backend API: http://localhost/api"
 	@echo "📈 Grafana: http://localhost:3001"
 
+prod-reset: ## Reset production environment (fix database issues)
+	@echo "🔄 Resetting production environment..."
+	@echo "⚠️ This will delete all InfluxDB data!"
+	@read -p "Continue? [y/N]: " confirm && \
+	if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
+		./scripts/fix-influxdb.sh; \
+	else \
+		echo "❌ Reset cancelled"; \
+	fi
+
 dev-down: ## Stop development environment
 	$(DOCKER_COMPOSE) -f docker-compose.dev.yml down
 

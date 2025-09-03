@@ -119,8 +119,14 @@ const startServer = async () => {
       }
     };
     
-    // Initialize services with retry logic
-    await initWithRetry('InfluxDB Connection', () => influxService.initialize());
+    // Initialize critical services - don't fail startup if InfluxDB is unavailable
+    try {
+      await initWithRetry('InfluxDB Connection', () => influxService.initialize());
+    } catch (error) {
+      logger.error('📊 InfluxDB initialization failed - server will run without time-series data:', error.message);
+      logger.warn('🚨 Check InfluxDB configuration and restart backend when fixed');
+    }
+    
     await initWithRetry('MQTT Broker Connection', () => mqttClient.initialize());
     await initWithRetry('Plant Service', () => plantService.initialize());
     

@@ -140,6 +140,11 @@ class InfluxService {
   }
 
   writeSensorData(deviceId, plantId, location, sensorType, value, unit, quality = 'good') {
+    if (!this.isConnected) {
+      logger.debug('📊 InfluxDB not connected - discarding sensor data');
+      return;
+    }
+
     const point = new Point('sensor_data')
       .tag('device_id', deviceId)
       .tag('plant_id', plantId)
@@ -160,6 +165,11 @@ class InfluxService {
   }
 
   writeWateringEvent(plantId, deviceId, triggerType, durationMs, volumeMl, success, reason) {
+    if (!this.isConnected) {
+      logger.debug('📊 InfluxDB not connected - discarding watering event');
+      return;
+    }
+
     const point = new Point('watering_events')
       .tag('plant_id', plantId)
       .tag('device_id', deviceId)
@@ -187,6 +197,11 @@ class InfluxService {
   }
 
   async getCurrentSensorData(plantId) {
+    if (!this.isConnected || !this.queryApi) {
+      logger.debug('📊 InfluxDB not connected - returning empty sensor data');
+      return [];
+    }
+
     const fluxQuery = flux`
       from(bucket: "${this.config.bucket}")
         |> range(start: -1h)
@@ -224,7 +239,7 @@ class InfluxService {
       return result;
     } catch (error) {
       logger.error('❌ Failed to get current sensor data:', error);
-      throw error;
+      return [];
     }
   }
 
@@ -405,22 +420,28 @@ class InfluxService {
 
   async getSystemHealth() {
     try {
-      const bufferSize = this.writeBuffer.length;
-      const retryQueueSize = this.retryQueue.length;
+      const bufferSize = this.writeBuffer?.length || 0;
+      const retryQueueSize = this.retryQueue?.length || 0;
 
       return {
         connected: this.isConnected,
         buffer_size: bufferSize,
         retry_queue_size: retryQueueSize,
-        url: this.config.url,
-        org: this.config.org,
-        bucket: this.config.bucket
+        url: this.config?.url || 'not configured',
+        org: this.config?.org || 'not configured',
+        bucket: this.config?.bucket || 'not configured',
+        responseTime: this.isConnected ? Date.now() : null,
+        lastWrite: this.writeBuffer?.length > 0 ? Date.now() : null,
+        error: this.isConnected ? null : 'InfluxDB connection failed'
       };
     } catch (error) {
       logger.error('❌ InfluxDB health check failed:', error);
       return {
         connected: false,
-        error: error.message
+        error: error.message,
+        url: 'not configured',
+        org: 'not configured', 
+        bucket: 'not configured'
       };
     }
   }
