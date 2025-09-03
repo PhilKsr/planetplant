@@ -1,0 +1,535 @@
+name: 🚀 Production Deployment Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (optional, defaults to latest)'
+        required: false
+        default: 'latest'
+      skip_tests:
+        description: 'Skip test phase'
+        type: boolean
+        required: false
+        default: false
+
+env:
+  REGISTRY: ghcr.io
+  REGISTRY_PREFIX: ghcr.io/philksr/planetplant
+  NODE_VERSION: '20'
+
+jobs:
+  # =============================================================================
+  # BUILD MULTI-ARCHITECTURE IMAGES
+  # =============================================================================
+  build:
+    name: 🏗️ Build & Push Images
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      packages: write
+      
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      backend-digest: ${{ steps.build-backend.outputs.digest }}
+      frontend-digest: ${{ steps.build-frontend.outputs.digest }}
+      nginx-digest: ${{ steps.build-nginx.outputs.digest }}
+      
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # For semantic versioning
+        
+    - name: 🏷️ Generate Version
+      id: version
+      run: |
+        if [ "${{ github.event.inputs.version }}" != "" ]; then
+          VERSION="${{ github.event.inputs.version }}"
+        else
+          # Use git describe for semantic versioning
+          if git describe --tags --exact-match HEAD 2>/dev/null; then
+            VERSION=$(git describe --tags --exact-match HEAD)
+          else
+            VERSION="v$(date +'%Y.%m.%d')-$(git rev-parse --short HEAD)"
+          fi
+        fi
+        echo "version=${VERSION}" >> $GITHUB_OUTPUT
+        echo "🏷️ Version: ${VERSION}"
+        
+    - name: 🐳 Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      with:
+        platforms: linux/amd64,linux/arm64
+        
+    - name: 🔐 Login to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: 🏗️ Build & Push Backend Image
+      id: build-backend
+      uses: docker/build-push-action@v5
+      with:
+        context: ./raspberry-pi
+        file: ./raspberry-pi/Dockerfile
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: |
+          ${{ env.REGISTRY_PREFIX }}/backend:latest
+          ${{ env.REGISTRY_PREFIX }}/backend:${{ steps.version.outputs.version }}
+        labels: |
+          org.opencontainers.image.title=PlanetPlant Backend
+          org.opencontainers.image.description=Smart IoT Plant Watering System - Backend API
+          org.opencontainers.image.version=${{ steps.version.outputs.version }}
+          org.opencontainers.image.revision=${{ github.sha }}
+          org.opencontainers.image.created=${{ github.event.head_commit.timestamp }}
+        cache-from: type=gha,scope=backend
+        cache-to: type=gha,mode=max,scope=backend
+        
+    - name: 🌐 Build & Push Frontend Image
+      id: build-frontend
+      uses: docker/build-push-action@v5
+      with:
+        context: ./webapp
+        file: ./webapp/Dockerfile
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: |
+          ${{ env.REGISTRY_PREFIX }}/frontend:latest
+          ${{ env.REGISTRY_PREFIX }}/frontend:${{ steps.version.outputs.version }}
+        labels: |
+          org.opencontainers.image.title=PlanetPlant Frontend
+          org.opencontainers.image.description=Smart IoT Plant Watering System - React PWA
+          org.opencontainers.image.version=${{ steps.version.outputs.version }}
+          org.opencontainers.image.revision=${{ github.sha }}
+          org.opencontainers.image.created=${{ github.event.head_commit.timestamp }}
+        cache-from: type=gha,scope=frontend
+        cache-to: type=gha,mode=max,scope=frontend
+        
+    - name: 🔀 Build & Push Nginx Proxy Image
+      id: build-nginx
+      uses: docker/build-push-action@v5
+      with:
+        context: ./nginx
+        file: ./nginx/Dockerfile
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: |
+          ${{ env.REGISTRY_PREFIX }}/nginx-proxy:latest
+          ${{ env.REGISTRY_PREFIX }}/nginx-proxy:${{ steps.version.outputs.version }}
+        labels: |
+          org.opencontainers.image.title=PlanetPlant Nginx Proxy
+          org.opencontainers.image.description=Smart IoT Plant Watering System - Reverse Proxy
+          org.opencontainers.image.version=${{ steps.version.outputs.version }}
+          org.opencontainers.image.revision=${{ github.sha }}
+          org.opencontainers.image.created=${{ github.event.head_commit.timestamp }}
+        cache-from: type=gha,scope=nginx
+        cache-to: type=gha,mode=max,scope=nginx
+        
+    - name: 📋 Build Summary
+      run: |
+        echo "🎉 All images built successfully!"
+        echo "📦 Backend: ${{ env.REGISTRY_PREFIX }}/backend:${{ steps.version.outputs.version }}"
+        echo "🌐 Frontend: ${{ env.REGISTRY_PREFIX }}/frontend:${{ steps.version.outputs.version }}"
+        echo "🔀 Nginx: ${{ env.REGISTRY_PREFIX }}/nginx-proxy:${{ steps.version.outputs.version }}"
+
+  # =============================================================================
+  # INTEGRATION TESTING
+  # =============================================================================
+  test:
+    name: 🧪 Integration Tests
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: ${{ !inputs.skip_tests }}
+    
+    services:
+      redis:
+        image: redis:7.2.5-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+          
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: 🐳 Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: 📋 Create Test Environment
+      run: |
+        cp raspberry-pi/.env.example .env
+        echo "REGISTRY_PREFIX=${{ env.REGISTRY_PREFIX }}" >> .env
+        echo "IMAGE_TAG=${{ needs.build.outputs.version }}" >> .env
+        
+    - name: 🔐 Login to Registry for Image Pull
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: 🚀 Start Test Environment
+      run: |
+        # Remove override to use registry images
+        rm -f docker-compose.override.yml
+        docker compose up -d --no-build
+        
+    - name: ⏳ Wait for Services to Start
+      run: |
+        echo "⏳ Waiting for services to initialize..."
+        sleep 60
+        
+    - name: 🔍 Service Status Check
+      run: |
+        echo "🐳 Container Status:"
+        docker compose ps
+        echo ""
+        echo "🩺 Service Health:"
+        docker compose logs --tail=20
+        
+    - name: 🧪 Health Checks
+      run: |
+        echo "🩺 Testing service health endpoints..."
+        
+        # Wait for InfluxDB
+        timeout 120 bash -c 'until curl -f http://localhost:8086/ping; do sleep 2; done'
+        echo "✅ InfluxDB is healthy"
+        
+        # Wait for Backend API
+        timeout 120 bash -c 'until curl -f http://localhost:3001/api/system/status; do sleep 2; done'
+        echo "✅ Backend API is healthy"
+        
+        # Wait for Frontend
+        timeout 60 bash -c 'until curl -f http://localhost/health; do sleep 2; done'
+        echo "✅ Frontend is healthy"
+        
+    - name: 🧪 API Integration Tests
+      run: |
+        echo "🧪 Running API tests..."
+        
+        # Test system status
+        RESPONSE=$(curl -s http://localhost/api/system/status)
+        if echo "$RESPONSE" | jq -e '.success == true' > /dev/null; then
+          echo "✅ System status API working"
+        else
+          echo "❌ System status API failed"
+          exit 1
+        fi
+        
+        # Test plants API
+        PLANTS_RESPONSE=$(curl -s http://localhost/api/plants)
+        if echo "$PLANTS_RESPONSE" | jq -e '.success == true' > /dev/null; then
+          echo "✅ Plants API working"
+        else
+          echo "❌ Plants API failed"
+          exit 1
+        fi
+        
+        # Test frontend serving
+        if curl -f -s http://localhost/ > /dev/null; then
+          echo "✅ Frontend serving correctly"
+        else
+          echo "❌ Frontend not accessible"
+          exit 1
+        fi
+        
+    - name: 📊 Performance Tests
+      run: |
+        echo "📊 Running performance tests..."
+        
+        # Test API response times
+        for i in {1..5}; do
+          START=$(date +%s%N)
+          curl -s http://localhost/api/system/status > /dev/null
+          END=$(date +%s%N)
+          DURATION=$(( (END - START) / 1000000 ))
+          echo "API response $i: ${DURATION}ms"
+          
+          if [ $DURATION -gt 2000 ]; then
+            echo "❌ API response too slow: ${DURATION}ms"
+            exit 1
+          fi
+        done
+        echo "✅ API performance acceptable"
+        
+    - name: 🛑 Cleanup Test Environment
+      if: always()
+      run: |
+        docker compose logs --tail=50 || true
+        docker compose down -v || true
+
+  # =============================================================================
+  # PRODUCTION DEPLOYMENT
+  # =============================================================================
+  deploy:
+    name: 🍓 Deploy to Raspberry Pi
+    runs-on: ubuntu-latest
+    needs: [build, test]
+    if: ${{ always() && needs.build.result == 'success' && (needs.test.result == 'success' || inputs.skip_tests) }}
+    environment: production
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: 🔐 Setup SSH
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.PI_SSH_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H "${{ secrets.PI_HOST }}" >> ~/.ssh/known_hosts
+        
+    - name: 📦 Prepare Deployment Files
+      run: |
+        # Create deployment environment file
+        cat > deploy.env << EOF
+        REGISTRY_PREFIX=${{ env.REGISTRY_PREFIX }}
+        IMAGE_TAG=${{ needs.build.outputs.version }}
+        NODE_ENV=production
+        EOF
+        
+    - name: 📤 Upload Deployment Files
+      run: |
+        # Create remote directory
+        ssh pi@${{ secrets.PI_HOST }} "mkdir -p /opt/planetplant/deploy"
+        
+        # Upload compose file and environment
+        scp docker-compose.yml pi@${{ secrets.PI_HOST }}:/opt/planetplant/deploy/
+        scp deploy.env pi@${{ secrets.PI_HOST }}:/opt/planetplant/deploy/
+        
+        # Upload scripts
+        scp -r scripts/ pi@${{ secrets.PI_HOST }}:/opt/planetplant/deploy/
+        scp -r config/ pi@${{ secrets.PI_HOST }}:/opt/planetplant/deploy/
+        
+    - name: 🔐 Login to Registry on Pi
+      run: |
+        ssh pi@${{ secrets.PI_HOST }} "echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u ${{ github.actor }} --password-stdin"
+        
+    - name: 💾 Backup Current System
+      run: |
+        ssh pi@${{ secrets.PI_HOST }} "
+          cd /opt/planetplant &&
+          if [ -f docker-compose.yml ]; then
+            echo '📦 Creating pre-deployment backup...'
+            tar -czf backup-pre-deploy-$(date +%Y%m%d-%H%M%S).tar.gz \
+              docker-compose.yml .env data/ logs/ config/ || true
+            echo '✅ Backup created'
+          fi
+        "
+        
+    - name: 🔄 Rolling Update Deployment
+      run: |
+        ssh pi@${{ secrets.PI_HOST }} "
+          cd /opt/planetplant/deploy &&
+          echo '🚀 Starting rolling deployment...' &&
+          
+          # Load new environment
+          set -a && source deploy.env && set +a &&
+          
+          # Pull new images
+          echo '📥 Pulling new images...' &&
+          docker compose pull || exit 1 &&
+          
+          # Stop services in reverse dependency order
+          echo '🛑 Stopping frontend services...' &&
+          docker compose stop nginx-proxy frontend || true &&
+          
+          echo '🔄 Updating backend...' &&
+          docker compose up -d backend --no-deps &&
+          sleep 10 &&
+          
+          # Health check backend
+          echo '🩺 Checking backend health...' &&
+          timeout 60 bash -c 'until curl -f http://localhost:3001/api/system/status; do sleep 2; done' &&
+          
+          echo '🌐 Updating frontend services...' &&
+          docker compose up -d frontend nginx-proxy --no-deps &&
+          sleep 5 &&
+          
+          echo '✅ Rolling update completed'
+        "
+        
+    - name: 🩺 Post-Deployment Health Check
+      run: |
+        echo "🩺 Running post-deployment health checks..."
+        
+        ssh pi@${{ secrets.PI_HOST }} "
+          # Wait for services to be fully ready
+          sleep 15 &&
+          
+          # Check all services
+          echo '🔍 Checking service status...' &&
+          docker compose ps &&
+          
+          echo '🩺 Testing health endpoints...' &&
+          
+          # Backend API
+          timeout 30 bash -c 'until curl -f http://localhost:3001/api/system/status; do sleep 2; done' &&
+          echo '✅ Backend API responding' &&
+          
+          # Frontend
+          timeout 30 bash -c 'until curl -f http://localhost/health; do sleep 2; done' &&
+          echo '✅ Frontend responding' &&
+          
+          # InfluxDB
+          timeout 30 bash -c 'until curl -f http://localhost:8086/ping; do sleep 2; done' &&
+          echo '✅ InfluxDB responding' &&
+          
+          echo '🎉 All health checks passed!'
+        "
+        
+    - name: 📋 Update Production Configuration
+      run: |
+        ssh pi@${{ secrets.PI_HOST }} "
+          cd /opt/planetplant &&
+          
+          # Copy new configuration
+          cp deploy/docker-compose.yml . &&
+          cp deploy/deploy.env .env.deploy &&
+          
+          # Update any changed config files
+          if [ -d deploy/config ]; then
+            cp -r deploy/config/* config/ 2>/dev/null || true
+          fi &&
+          
+          echo '✅ Production configuration updated'
+        "
+        
+    - name: 🔄 Restart Failed Services (if any)
+      if: failure()
+      run: |
+        echo "⚠️ Deployment issues detected, attempting service restart..."
+        ssh pi@${{ secrets.PI_HOST }} "
+          cd /opt/planetplant &&
+          docker compose restart &&
+          sleep 20 &&
+          docker compose ps
+        "
+        
+    - name: 🔙 Rollback on Critical Failure
+      if: failure()
+      run: |
+        echo "🔙 Rolling back to previous version..."
+        ssh pi@${{ secrets.PI_HOST }} "
+          cd /opt/planetplant &&
+          
+          # Find most recent backup
+          BACKUP=\$(ls -t backup-pre-deploy-*.tar.gz 2>/dev/null | head -1) &&
+          
+          if [ -n \"\$BACKUP\" ]; then
+            echo '📦 Restoring from backup: '\$BACKUP &&
+            tar -xzf \$BACKUP &&
+            docker compose up -d &&
+            echo '✅ Rollback completed'
+          else
+            echo '❌ No backup found, manual intervention required'
+            exit 1
+          fi
+        "
+
+  # =============================================================================
+  # DEPLOYMENT NOTIFICATIONS
+  # =============================================================================
+  notify:
+    name: 📢 Deployment Notifications
+    runs-on: ubuntu-latest
+    needs: [build, test, deploy]
+    if: always()
+    
+    steps:
+    - name: 📊 Determine Deployment Status
+      id: status
+      run: |
+        BUILD_STATUS="${{ needs.build.result }}"
+        TEST_STATUS="${{ needs.test.result }}"
+        DEPLOY_STATUS="${{ needs.deploy.result }}"
+        
+        if [[ "$BUILD_STATUS" == "success" && ("$TEST_STATUS" == "success" || "$TEST_STATUS" == "skipped") && "$DEPLOY_STATUS" == "success" ]]; then
+          echo "status=success" >> $GITHUB_OUTPUT
+          echo "message=🎉 Deployment successful" >> $GITHUB_OUTPUT
+          echo "color=3066993" >> $GITHUB_OUTPUT  # Green
+        else
+          echo "status=failure" >> $GITHUB_OUTPUT
+          echo "message=❌ Deployment failed" >> $GITHUB_OUTPUT  
+          echo "color=15158332" >> $GITHUB_OUTPUT  # Red
+        fi
+        
+    - name: 📱 Discord Notification
+      if: ${{ secrets.DISCORD_WEBHOOK }}
+      run: |
+        curl -H "Content-Type: application/json" -X POST \
+          -d "{
+            \"embeds\": [{
+              \"title\": \"${{ steps.status.outputs.message }}\",
+              \"description\": \"PlanetPlant Production Deployment\",
+              \"color\": ${{ steps.status.outputs.color }},
+              \"fields\": [
+                {\"name\": \"Version\", \"value\": \"${{ needs.build.outputs.version }}\", \"inline\": true},
+                {\"name\": \"Branch\", \"value\": \"${{ github.ref_name }}\", \"inline\": true},
+                {\"name\": \"Commit\", \"value\": \"[\`${{ github.sha }}\`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})\", \"inline\": true},
+                {\"name\": \"Build\", \"value\": \"${{ needs.build.result }}\", \"inline\": true},
+                {\"name\": \"Tests\", \"value\": \"${{ needs.test.result }}\", \"inline\": true},
+                {\"name\": \"Deploy\", \"value\": \"${{ needs.deploy.result }}\", \"inline\": true}
+              ],
+              \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\"
+            }]
+          }" \
+          "${{ secrets.DISCORD_WEBHOOK }}" || echo "Discord notification failed"
+          
+    - name: 📱 Slack Notification  
+      if: ${{ secrets.SLACK_WEBHOOK }}
+      run: |
+        STATUS_EMOJI="${{ steps.status.outputs.status == 'success' && '🎉' || '❌' }}"
+        curl -X POST -H 'Content-type: application/json' \
+          --data "{
+            \"text\": \"$STATUS_EMOJI PlanetPlant Deployment ${{ steps.status.outputs.status == 'success' && 'Successful' || 'Failed' }}\",
+            \"blocks\": [
+              {
+                \"type\": \"section\",
+                \"text\": {
+                  \"type\": \"mrkdwn\",
+                  \"text\": \"*PlanetPlant Production Deployment*\n${{ steps.status.outputs.message }}\"
+                }
+              },
+              {
+                \"type\": \"section\",
+                \"fields\": [
+                  {\"type\": \"mrkdwn\", \"text\": \"*Version:*\n${{ needs.build.outputs.version }}\"},
+                  {\"type\": \"mrkdwn\", \"text\": \"*Branch:*\n${{ github.ref_name }}\"},
+                  {\"type\": \"mrkdwn\", \"text\": \"*Build:*\n${{ needs.build.result }}\"},
+                  {\"type\": \"mrkdwn\", \"text\": \"*Tests:*\n${{ needs.test.result }}\"},
+                  {\"type\": \"mrkdwn\", \"text\": \"*Deploy:*\n${{ needs.deploy.result }}\"}
+                ]
+              }
+            ]
+          }" \
+          "${{ secrets.SLACK_WEBHOOK }}" || echo "Slack notification failed"
+          
+    - name: 📝 Deployment Summary
+      run: |
+        echo "📋 Deployment Summary"
+        echo "===================="
+        echo "🏷️  Version: ${{ needs.build.outputs.version }}"
+        echo "🌿 Branch: ${{ github.ref_name }}"
+        echo "📦 Build: ${{ needs.build.result }}"
+        echo "🧪 Tests: ${{ needs.test.result }}"
+        echo "🚀 Deploy: ${{ needs.deploy.result }}"
+        echo "📱 Status: ${{ steps.status.outputs.status }}"
+        echo ""
+        if [[ "${{ steps.status.outputs.status }}" == "success" ]]; then
+          echo "🎉 PlanetPlant is now running the latest version on Raspberry Pi!"
+          echo "🌐 Access: http://${{ secrets.PI_HOST }}"
+        else
+          echo "❌ Deployment failed. Check logs and consider manual intervention."
+        fi

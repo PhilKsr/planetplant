@@ -298,6 +298,86 @@ make lint
 - **Conventional Commits** für Commit-Messages
 - **Tests** für neue Features
 
+## 🚀 CI/CD Pipeline
+
+PlanetPlant verfügt über eine vollständige CI/CD Pipeline für automatisierte Builds und Deployments.
+
+### GitHub Actions Workflows
+
+#### 🏗️ Multi-Arch Image Builds (`build-images.yml`)
+- **Trigger:** Push auf main branch oder manuell
+- **Platforms:** linux/amd64 (Mac/x86), linux/arm64 (Raspberry Pi)
+- **Registry:** GitHub Container Registry (ghcr.io)
+- **Images:** backend, frontend, nginx-proxy
+
+#### 🚀 Production Deployment (`deploy-production.yml`) 
+- **Trigger:** Push auf main branch oder manuell
+- **Stages:** Build → Test → Deploy → Notify
+- **Features:** Rolling updates, health checks, automatic rollback
+- **Target:** Raspberry Pi via SSH
+
+### Required GitHub Secrets
+
+Für die CI/CD Pipeline müssen folgende Secrets in den Repository-Einstellungen konfiguriert werden:
+
+```bash
+# Deployment Target
+PI_HOST=your-raspberry-pi-hostname-or-ip
+PI_SSH_KEY=your-private-ssh-key-content
+
+# Container Registry (automatisch verfügbar)
+GITHUB_TOKEN=automatic-github-token
+
+# Notifications (optional)
+DISCORD_WEBHOOK=https://discord.com/api/webhooks/your-webhook
+SLACK_WEBHOOK=https://hooks.slack.com/your-webhook
+```
+
+### Manual Image Builds
+
+Für lokale Multi-Arch Builds:
+
+```bash
+# Setup
+export GITHUB_TOKEN=ghp_your_token_here
+
+# Build und Push aller Images
+./scripts/push-images.sh
+
+# Spezifische Version
+IMAGE_TAG=v1.2.3 ./scripts/push-images.sh
+```
+
+### Deployment Workflow
+
+1. **Code Push** auf main branch
+2. **Images builden** für AMD64 + ARM64
+3. **Integration Tests** mit neuen Images
+4. **Deploy auf Pi** via SSH mit Rolling Update
+5. **Health Checks** nach Deployment
+6. **Notifications** über Discord/Slack
+7. **Automatic Rollback** bei Fehlern
+
+### Production Environment Setup
+
+Raspberry Pi vorbereiten für automatisierte Deployments:
+
+```bash
+# 1. SSH Key Setup
+ssh-copy-id pi@your-pi-host
+
+# 2. Docker Login Token erstellen
+echo "ghp_your_token" | docker login ghcr.io -u your-username --password-stdin
+
+# 3. Deployment Directory
+sudo mkdir -p /opt/planetplant
+sudo chown pi:pi /opt/planetplant
+
+# 4. Environment konfigurieren
+cp .env.example /opt/planetplant/.env
+# .env entsprechend anpassen
+```
+
 ## 🏷️ Technologie-Stack
 
 ### Backend
