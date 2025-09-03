@@ -34,7 +34,9 @@ const consoleFormat = winston.format.combine(
   })
 );
 
-// Create transports array
+import fs from 'fs';
+
+// Create initial transports array with console only
 const transports = [];
 
 // Console transport
@@ -47,23 +49,40 @@ if (CONSOLE_LOGGING) {
   );
 }
 
-import fs from 'fs';
+const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: logFormat,
+  transports,
+  // Don't exit on handled exceptions
+  exitOnError: false
+});
 
 function ensureLogDirSafe(dir) {
   try {
     fs.mkdirSync(dir, { recursive: true });
   } catch (e) {
-    // Don't crash - console logging remains active
+    return false;
   }
+  return true;
 }
 
-// File transports
-if (FILE_LOGGING) {
-  ensureLogDirSafe(LOG_DIR);
-  
+// Deferred function to add file transports after directory is ready
+function addFileTransports() {
+  if (!FILE_LOGGING) return;
+
+  if (!ensureLogDirSafe(LOG_DIR)) {
+    console.warn('Could not create log directory, using console logging only');
+    return;
+  }
+
   try {
-    // General log file with rotation
-    transports.push(
+    // Test write access
+    const testFile = path.join(LOG_DIR, '.write-test');
+    fs.writeFileSync(testFile, 'test');
+    fs.unlinkSync(testFile);
+
+    // Add file transports
+    logger.add(
       new DailyRotateFile({
         filename: path.join(LOG_DIR, 'plantplant-%DATE%.log'),
         datePattern: 'YYYY-MM-DD',
@@ -74,8 +93,7 @@ if (FILE_LOGGING) {
       })
     );
 
-    // Error-only log file
-    transports.push(
+    logger.add(
       new DailyRotateFile({
         filename: path.join(LOG_DIR, 'error-%DATE%.log'),
         datePattern: 'YYYY-MM-DD',
@@ -86,9 +104,8 @@ if (FILE_LOGGING) {
       })
     );
 
-    // Debug log file (only in development or when explicitly enabled)
     if (process.env.NODE_ENV === 'development' || process.env.DEBUG_LOGGING === 'true') {
-      transports.push(
+      logger.add(
         new DailyRotateFile({
           filename: path.join(LOG_DIR, 'debug-%DATE%.log'),
           datePattern: 'YYYY-MM-DD',
@@ -99,28 +116,25 @@ if (FILE_LOGGING) {
         })
       );
     }
+
+    // Add exception handlers
+    logger.exceptions.handle(
+      new winston.transports.File({ filename: path.join(LOG_DIR, 'exceptions.log') })
+    );
+    
+    // Add rejection handlers
+    logger.rejections.handle(
+      new winston.transports.File({ filename: path.join(LOG_DIR, 'rejections.log') })
+    );
+
+    logger.info('File logging enabled', { logDir: LOG_DIR });
   } catch (e) {
-    // Fallback without crash: skip file logging, use console only
+    console.warn('Could not set up file logging, using console only:', e.message);
   }
 }
 
-const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
-  format: logFormat,
-  transports,
-  // Don't exit on handled exceptions
-  exitOnError: false,
-  
-  // Handle uncaught exceptions
-  exceptionHandlers: FILE_LOGGING ? [
-    new winston.transports.File({ filename: path.join(LOG_DIR, 'exceptions.log') })
-  ] : [],
-  
-  // Handle unhandled promise rejections
-  rejectionHandlers: FILE_LOGGING ? [
-    new winston.transports.File({ filename: path.join(LOG_DIR, 'rejections.log') })
-  ] : []
-});
+// Add file transports with a small delay to allow directory setup
+setTimeout(addFileTransports, 2000);
 
 // Add request logging helper
 logger.logRequest = (req, res, responseTime) => {
@@ -224,10 +238,11 @@ logger.info('Logger initialized', {
   logDir: LOG_DIR,
   nodeEnv: process.env.NODE_ENV,
   consoleLogging: CONSOLE_LOGGING,
-  fileLogging: FILE_LOGGING
+  fileLogging: FILE_LOGGING,
+  note: 'File logging will be enabled after directory setup'
 });
 
-export { logger };
+export { logger, addFileTransports };
 
 // Export helper function for creating child loggers
 export const createChildLogger = (service) => {
