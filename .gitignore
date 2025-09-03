@@ -160,3 +160,6 @@ venv.bak/
 tmp/
 temp/
 .temp/
+
+# Docker Compose Override (local development only)
+docker-compose.override.yml

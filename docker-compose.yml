@@ -100,6 +100,7 @@ services:
 
   # Backend Node.js Server
   backend:
+    image: ${REGISTRY_PREFIX:-ghcr.io/philksr/planetplant}/backend:${IMAGE_TAG:-latest}
     build:
       context: ./raspberry-pi
       dockerfile: Dockerfile
@@ -164,6 +165,7 @@ services:
 
   # Frontend React PWA
   frontend:
+    image: ${REGISTRY_PREFIX:-ghcr.io/philksr/planetplant}/frontend:${IMAGE_TAG:-latest}
     build:
       context: ./webapp
       dockerfile: Dockerfile
@@ -190,6 +192,7 @@ services:
 
   # Nginx Reverse Proxy
   nginx-proxy:
+    image: ${REGISTRY_PREFIX:-ghcr.io/philksr/planetplant}/nginx-proxy:${IMAGE_TAG:-latest}
     build:
       context: ./nginx
       dockerfile: Dockerfile
