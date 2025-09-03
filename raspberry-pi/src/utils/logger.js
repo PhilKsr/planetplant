@@ -49,13 +49,8 @@ if (CONSOLE_LOGGING) {
   );
 }
 
-const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
-  format: logFormat,
-  transports,
-  // Don't exit on handled exceptions
-  exitOnError: false
-});
+let fileTransportsEnabled = false;
+let fileTransportAttempted = false;
 
 function ensureLogDirSafe(dir) {
   try {
@@ -66,9 +61,18 @@ function ensureLogDirSafe(dir) {
   return true;
 }
 
-// Deferred function to add file transports after directory is ready
-function addFileTransports() {
-  if (!FILE_LOGGING) return;
+// Create logger first
+const baseLogger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: logFormat,
+  transports,
+  exitOnError: false
+});
+
+// Lazy function to add file transports when first log message is written
+function ensureFileTransports() {
+  if (!FILE_LOGGING || fileTransportAttempted) return;
+  fileTransportAttempted = true;
 
   if (!ensureLogDirSafe(LOG_DIR)) {
     console.warn('Could not create log directory, using console logging only');
@@ -82,7 +86,7 @@ function addFileTransports() {
     fs.unlinkSync(testFile);
 
     // Add file transports
-    logger.add(
+    baseLogger.add(
       new DailyRotateFile({
         filename: path.join(LOG_DIR, 'plantplant-%DATE%.log'),
         datePattern: 'YYYY-MM-DD',
@@ -93,7 +97,7 @@ function addFileTransports() {
       })
     );
 
-    logger.add(
+    baseLogger.add(
       new DailyRotateFile({
         filename: path.join(LOG_DIR, 'error-%DATE%.log'),
         datePattern: 'YYYY-MM-DD',
@@ -105,7 +109,7 @@ function addFileTransports() {
     );
 
     if (process.env.NODE_ENV === 'development' || process.env.DEBUG_LOGGING === 'true') {
-      logger.add(
+      baseLogger.add(
         new DailyRotateFile({
           filename: path.join(LOG_DIR, 'debug-%DATE%.log'),
           datePattern: 'YYYY-MM-DD',
@@ -118,23 +122,35 @@ function addFileTransports() {
     }
 
     // Add exception handlers
-    logger.exceptions.handle(
+    baseLogger.exceptions.handle(
       new winston.transports.File({ filename: path.join(LOG_DIR, 'exceptions.log') })
     );
     
     // Add rejection handlers
-    logger.rejections.handle(
+    baseLogger.rejections.handle(
       new winston.transports.File({ filename: path.join(LOG_DIR, 'rejections.log') })
     );
 
-    logger.info('File logging enabled', { logDir: LOG_DIR });
+    fileTransportsEnabled = true;
+    console.log('File logging enabled:', LOG_DIR);
   } catch (e) {
     console.warn('Could not set up file logging, using console only:', e.message);
   }
 }
 
-// Add file transports with a small delay to allow directory setup
-setTimeout(addFileTransports, 2000);
+// Create proxy logger that ensures file transports before logging
+const logger = new Proxy(baseLogger, {
+  get(target, prop) {
+    // Intercept logging methods to ensure file transports
+    if (typeof target[prop] === 'function' && ['log', 'info', 'warn', 'error', 'debug'].includes(prop)) {
+      return function(...args) {
+        ensureFileTransports();
+        return target[prop].apply(target, args);
+      };
+    }
+    return target[prop];
+  }
+});
 
 // Add request logging helper
 logger.logRequest = (req, res, responseTime) => {
@@ -242,7 +258,7 @@ logger.info('Logger initialized', {
   note: 'File logging will be enabled after directory setup'
 });
 
-export { logger, addFileTransports };
+export { logger };
 
 // Export helper function for creating child loggers
 export const createChildLogger = (service) => {
