@@ -27,17 +27,19 @@ export const WebSocketProvider = ({ children }) => {
   const maxReconnectAttempts = 5;
 
   useEffect(() => {
-    const serverUrl = import.meta.env.VITE_WS_URL || import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3001';
+    const serverUrl = import.meta.env.VITE_WS_URL || import.meta.env.VITE_API_URL?.replace('/api', '') || window.location.origin;
 
     const socketInstance = io(serverUrl, {
-      transports: ['websocket'],
+      transports: ['websocket', 'polling'],
       upgrade: true,
       autoConnect: true,
       reconnection: true,
       reconnectionAttempts: maxReconnectAttempts,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      timeout: 5000,
+      timeout: 10000,
+      forceNew: false,
+      path: '/socket.io/',
     });
 
     // Connection event handlers

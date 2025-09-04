@@ -110,6 +110,7 @@
   },
   "time": {
     "now": "now",
+    "justNow": "Just now",
     "minute": "minute",
     "minutes": "minutes",
     "hour": "hour", 
@@ -117,5 +118,60 @@
     "day": "day",
     "days": "days",
     "ago": "ago"
+  },
+  "loading": {
+    "wateringHistory": "Loading watering history...",
+    "systemInformation": "Loading system information...",
+    "general": "Loading..."
+  },
+  "watering": {
+    "history": "Watering History",
+    "noHistory": "No watering history",
+    "notWateredYet": "This plant hasn't been watered yet.",
+    "duration": "Duration",
+    "frequency": "Frequency",
+    "triggerTypes": {
+      "auto": "Auto",
+      "manual": "Manual", 
+      "scheduled": "Scheduled"
+    },
+    "status": {
+      "success": "Success",
+      "failed": "Failed"
+    }
+  },
+  "errors": {
+    "title": "Oops! Something went wrong",
+    "message": "PlanetPlant encountered an unexpected error. Don't worry, your plants are still safe!",
+    "details": "Error Details (Development)",
+    "reportIssue": "report this issue",
+    "somethingWentWrong": "Something went wrong",
+    "errorOccurred": "An error occurred. Please try again.",
+    "invalidRequest": "Invalid request",
+    "resourceNotFound": "Resource not found", 
+    "serverError": "Server error. Please try again later.",
+    "networkError": "Network error. Check your connection.",
+    "requestFailed": "Request failed. Please try again.",
+    "operationFailed": "Operation failed",
+    "loadWateringHistory": "Failed to load watering history",
+    "loadWateringHistoryDetails": "Unable to fetch watering events.",
+    "loadSystemInfo": "Failed to load system information"
+  },
+  "notifications": {
+    "notSupported": "Push notifications not supported",
+    "initializationFailed": "Failed to initialize notifications",
+    "notSupportedDevice": "Notifications are not supported on this device",
+    "permissionDenied": "Notification permission denied",
+    "disabled": "Notifications disabled",
+    "failedToDisable": "Failed to disable notifications",
+    "preferencesUpdated": "Notification preferences updated",
+    "failedToUpdate": "Failed to update notification preferences",
+    "testNotification": "Test Notification",
+    "waterNow": "Water Now",
+    "viewPlant": "View Plant"
+  },
+  "appearance": {
+    "title": "Appearance",
+    "description": "Customize the look and feel"
   }
 }

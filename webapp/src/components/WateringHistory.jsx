@@ -7,12 +7,14 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { plantsApi } from '../services/api';
 import ErrorState from './ui/ErrorState';
 import LoadingSpinner from './ui/LoadingSpinner';
 
 const WateringHistory = ({ plantId }) => {
+  const { t } = useTranslation();
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['watering-history', plantId],
     queryFn: async () => {
@@ -41,17 +43,17 @@ const WateringHistory = ({ plantId }) => {
     if (diffDays > 0) return `${diffDays}d ago`;
     if (diffHours > 0) return `${diffHours}h ago`;
     if (diffMinutes > 0) return `${diffMinutes}m ago`;
-    return 'Just now';
+    return t('time.justNow');
   };
 
   const getTriggerTypeLabel = type => {
     switch (type) {
       case 'automatic':
-        return 'Auto';
+        return t('watering.triggerTypes.auto');
       case 'manual':
-        return 'Manual';
+        return t('watering.triggerTypes.manual');
       case 'scheduled':
-        return 'Scheduled';
+        return t('watering.triggerTypes.scheduled');
       default:
         return type;
     }
@@ -73,7 +75,7 @@ const WateringHistory = ({ plantId }) => {
   if (isLoading) {
     return (
       <div className="flex justify-center py-12">
-        <LoadingSpinner message="Loading watering history..." />
+        <LoadingSpinner message={t('loading.wateringHistory')} />
       </div>
     );
   }
@@ -81,8 +83,8 @@ const WateringHistory = ({ plantId }) => {
   if (error) {
     return (
       <ErrorState
-        title="Failed to load watering history"
-        message="Unable to fetch watering events."
+        title={t('errors.loadWateringHistory')}
+        message={t('errors.loadWateringHistoryDetails')}
         onRetry={refetch}
       />
     );
@@ -97,10 +99,10 @@ const WateringHistory = ({ plantId }) => {
           <IconDroplet className="h-8 w-8 text-gray-400" />
         </div>
         <h3 className="mb-2 text-lg font-medium text-gray-900 dark:text-white">
-          No watering history
+          {t('watering.noHistory')}
         </h3>
         <p className="text-gray-600 dark:text-gray-400">
-          This plant hasn&apos;t been watered yet.
+          {t('watering.notWateredYet')}
         </p>
       </div>
     );
@@ -115,7 +117,7 @@ const WateringHistory = ({ plantId }) => {
     >
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-          Watering History
+          {t('watering.history')}
         </h3>
         <span className="text-sm text-gray-500 dark:text-gray-400">
           Last 30 days • {events.length} events
@@ -190,7 +192,7 @@ const WateringHistory = ({ plantId }) => {
                       : 'text-red-600 dark:text-red-400'
                   }`}
                 >
-                  {event.success ? 'Success' : 'Failed'}
+                  {event.success ? t('watering.status.success') : t('watering.status.failed')}
                 </div>
               </div>
             </div>

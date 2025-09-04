@@ -110,6 +110,7 @@
   },
   "time": {
     "now": "jetzt",
+    "justNow": "Gerade eben",
     "minute": "Minute",
     "minutes": "Minuten", 
     "hour": "Stunde",
@@ -117,5 +118,60 @@
     "day": "Tag",
     "days": "Tage", 
     "ago": "vor"
+  },
+  "loading": {
+    "wateringHistory": "Bewässerungsverlauf wird geladen...",
+    "systemInformation": "Systeminformationen werden geladen...",
+    "general": "Wird geladen..."
+  },
+  "watering": {
+    "history": "Bewässerungsverlauf",
+    "noHistory": "Kein Bewässerungsverlauf", 
+    "notWateredYet": "Diese Pflanze wurde noch nicht gegossen.",
+    "duration": "Dauer",
+    "frequency": "Häufigkeit",
+    "triggerTypes": {
+      "auto": "Automatisch",
+      "manual": "Manuell", 
+      "scheduled": "Geplant"
+    },
+    "status": {
+      "success": "Erfolgreich",
+      "failed": "Fehlgeschlagen"
+    }
+  },
+  "errors": {
+    "title": "Ups! Etwas ist schiefgelaufen",
+    "message": "PlanetPlant hat einen unerwarteten Fehler festgestellt. Keine Sorge, Ihre Pflanzen sind noch sicher!",
+    "details": "Fehler Details (Entwicklung)",
+    "reportIssue": "Problem melden",
+    "somethingWentWrong": "Etwas ist schiefgelaufen",
+    "errorOccurred": "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
+    "invalidRequest": "Ungültige Anfrage",
+    "resourceNotFound": "Ressource nicht gefunden", 
+    "serverError": "Server-Fehler. Bitte versuchen Sie es später erneut.",
+    "networkError": "Netzwerk-Fehler. Überprüfen Sie Ihre Verbindung.",
+    "requestFailed": "Anfrage fehlgeschlagen. Bitte versuchen Sie es erneut.",
+    "operationFailed": "Vorgang fehlgeschlagen",
+    "loadWateringHistory": "Bewässerungsverlauf konnte nicht geladen werden",
+    "loadWateringHistoryDetails": "Bewässerungsereignisse konnten nicht abgerufen werden.",
+    "loadSystemInfo": "Systeminformationen konnten nicht geladen werden"
+  },
+  "notifications": {
+    "notSupported": "Push-Benachrichtigungen werden nicht unterstützt",
+    "initializationFailed": "Benachrichtigungen konnten nicht initialisiert werden",
+    "notSupportedDevice": "Benachrichtigungen werden auf diesem Gerät nicht unterstützt",
+    "permissionDenied": "Benachrichtigungsberechtigung verweigert",
+    "disabled": "Benachrichtigungen deaktiviert",
+    "failedToDisable": "Benachrichtigungen konnten nicht deaktiviert werden",
+    "preferencesUpdated": "Benachrichtigungseinstellungen aktualisiert",
+    "failedToUpdate": "Benachrichtigungseinstellungen konnten nicht aktualisiert werden",
+    "testNotification": "Test-Benachrichtigung",
+    "waterNow": "Jetzt gießen",
+    "viewPlant": "Pflanze anzeigen"
+  },
+  "appearance": {
+    "title": "Erscheinungsbild",
+    "description": "Aussehen und Verhalten anpassen"
   }
 }

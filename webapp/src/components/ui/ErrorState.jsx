@@ -1,14 +1,19 @@
 import { motion } from 'framer-motion';
 import { AlertTriangle, RotateCcw } from 'lucide-react';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 const ErrorState = ({
-  title = 'Something went wrong',
-  message = 'An error occurred. Please try again.',
+  title,
+  message,
   onRetry,
   showRetry = true,
   className = '',
 }) => {
+  const { t } = useTranslation();
+  
+  const defaultTitle = title || t('errors.somethingWentWrong');
+  const defaultMessage = message || t('errors.errorOccurred');
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -31,7 +36,7 @@ const ErrorState = ({
         transition={{ delay: 0.2, duration: 0.3 }}
         className="mb-2 text-lg font-semibold text-gray-900 dark:text-white"
       >
-        {title}
+        {defaultTitle}
       </motion.h3>
 
       <motion.p
@@ -40,7 +45,7 @@ const ErrorState = ({
         transition={{ delay: 0.3, duration: 0.3 }}
         className="mb-6 max-w-md text-gray-600 dark:text-gray-400"
       >
-        {message}
+        {defaultMessage}
       </motion.p>
 
       {showRetry && onRetry && (
@@ -54,7 +59,7 @@ const ErrorState = ({
           whileTap={{ scale: 0.95 }}
         >
           <RotateCcw className="h-5 w-5" />
-          <span>Try Again</span>
+          <span>{t('actions.tryAgain')}</span>
         </motion.button>
       )}
     </motion.div>
