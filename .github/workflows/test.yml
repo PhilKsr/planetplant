@@ -169,6 +169,14 @@ jobs:
       run: |
         cp .env.example .env
         
+    - name: 🛑 Stop Conflicting Services
+      run: |
+        # Stop any running services that might conflict with ports
+        sudo systemctl stop redis-server || true
+        docker stop $(docker ps -q --filter "expose=6379") 2>/dev/null || true
+        docker stop $(docker ps -q --filter "expose=1883") 2>/dev/null || true
+        docker stop $(docker ps -q --filter "expose=8086") 2>/dev/null || true
+        
     - name: 🚀 Start Services
       run: |
         docker-compose -f docker-compose.dev.yml up -d --build
