@@ -30,7 +30,6 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
-        cache: 'npm'
         
     # Backend Testing
     - name: 📊 Install Backend Dependencies
@@ -84,7 +83,6 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: '20'
-        cache: 'npm'
         
     - name: 🔍 Backend Audit
       run: |
