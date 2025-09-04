@@ -483,7 +483,9 @@ jobs:
         fi
         
     - name: 📱 Discord Staging Notification
-      if: ${{ secrets.DISCORD_WEBHOOK }}
+      if: ${{ env.DISCORD_WEBHOOK != '' }}
+      env:
+        DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
       run: |
         curl -H "Content-Type: application/json" -X POST \
           -d "{
@@ -503,7 +505,7 @@ jobs:
               \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\"
             }]
           }" \
-          "${{ secrets.DISCORD_WEBHOOK }}" || echo "Discord notification failed"
+          "$DISCORD_WEBHOOK" || echo "Discord notification failed"
           
     - name: 📝 Staging Summary
       run: |
